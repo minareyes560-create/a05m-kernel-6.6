@@ -23,9 +23,10 @@ jobs:
           echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
         fi
 
-        # Eliminar cualquier bandera de perfil afdo o LTO en los Makefile del kernel
-        find . -type f \( -name "Makefile" -o -name "Makefile.*" \) -exec sed -i '/-fprofile-use/d' {} +
-        find . -type f \( -name "Makefile" -o -name "Makefile.*" \) -exec sed -i '/CONFIG_AFDO_PROFILE/d' {} +
+        # Eliminar banderas de perfil AFDO en todo el código fuente y scripts
+        find . -type f \( -name "Makefile*" -o -name "*.mk" \) -exec sed -i '/kernel.afdo/d' {} +
+        find scripts/ -type f -name "*.build" -exec sed -i '/fprofile-use/d' {} +
+        find . -type f -name "Makefile" -exec sed -i '/fprofile-use/d' {} +
 
         DEFCONFIG_FILE=$(find arch/arm64/configs -name "*defconfig" | head -n 1)
         echo "CONFIG_LTO_NONE=y" >> "$DEFCONFIG_FILE"
