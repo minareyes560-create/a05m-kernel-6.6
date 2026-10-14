@@ -16,9 +16,11 @@ jobs:
 
     - run: |
         cd kernel-6.6
-        mkdir -p drivers/kernelsu
-        touch drivers/kernelsu/Kconfig
-        echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
+        if [ ! -d "drivers/kernelsu" ]; then
+          mkdir -p drivers/kernelsu
+          touch drivers/kernelsu/Kconfig
+          echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
+        fi
         
         DEFCONFIG_FILE=$(find arch/arm64/configs -name "*defconfig" | head -n 1)
         echo "CONFIG_USB_NET_CDC_EEH=y" >> "$DEFCONFIG_FILE"
