@@ -31,7 +31,6 @@ jobs:
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-android-
         cd kernel-6.6
-        make clean
         make a05m_defconfig
         make -j$(nproc)
 
