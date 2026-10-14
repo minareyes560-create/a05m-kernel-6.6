@@ -1,0 +1,37 @@
+name: Compile Galaxy A05 Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Build Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache
+
+    - name: Download Toolchain
+      run: |
+        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 toolchain
+
+    - name: Build Kernel
+      run: |
+        export PATH=$(pwd)/toolchain/bin:$PATH
+        export ARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-android-
+        cd kernel-6.6
+        make clean
+        make a05m_defconfig
+        make -j$(nproc)
+
+    - name: Upload Kernel Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: A05-Kernel-Image
+        path: kernel-6.6/arch/arm64/boot/Image.gz
