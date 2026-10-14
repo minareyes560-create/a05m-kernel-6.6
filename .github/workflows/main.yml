@@ -34,7 +34,8 @@ jobs:
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-gnu-
         cd kernel-6.6
-        make a05m_defconfig
+        DEFCONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
+        make ${DEFCONFIG_NAME}
         make -j$(nproc)
 
     - uses: actions/upload-artifact@v4
