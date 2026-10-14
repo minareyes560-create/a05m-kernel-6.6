@@ -28,7 +28,19 @@ jobs:
         export SUBARCH=arm64
         cd kernel-6.6
         DEFCONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
+        
+        # Generar la configuración base
         make CC=clang LD=ld.lld ${DEFCONFIG_NAME}
+        
+        # Desactivar LTO y AFDO directamente en el archivo .config generado para evitar errores de perfiles
+        sed -i 's/CONFIG_LTO_CLANG=y/# CONFIG_LTO_CLANG is not set/' .config || true
+        sed -i 's/CONFIG_AFDO_PROFILE=y/# CONFIG_AFDO_PROFILE is not set/' .config || true
+        echo "CONFIG_LTO_NONE=y" >> .config
+        
+        # Actualizar la configuración con los cambios
+        make CC=clang LD=ld.lld olddefconfig
+        
+        # Iniciar compilación
         make -j$(nproc) CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1
 
     - uses: actions/upload-artifact@v4
