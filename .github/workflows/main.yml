@@ -12,7 +12,7 @@ jobs:
 
     - run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pahole
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache clang llvm pahole
 
     - run: |
         cd kernel-6.6
@@ -25,11 +25,11 @@ jobs:
 
     - run: |
         export ARCH=arm64
-        export CROSS_COMPILE=aarch64-linux-gnu-
+        export SUBARCH=arm64
         cd kernel-6.6
         DEFCONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
         make ${DEFCONFIG_NAME}
-        make -j$(nproc) V=1
+        make -j$(nproc) LLVM=1 LLVM_IAS=1
 
     - uses: actions/upload-artifact@v4
       with:
