@@ -15,11 +15,6 @@ jobs:
         sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache pahole clang lld llvm
 
     - run: |
-        sudo mkdir -p /kernel_device_modules-6.6/profile
-        sudo touch /kernel_device_modules-6.6/profile/kernel.afdo
-        sudo chmod -R 777 /kernel_device_modules-6.6
-
-    - run: |
         cd kernel-6.6
         rm -rf drivers/kernelsu
         mkdir -p drivers/kernelsu
@@ -27,6 +22,10 @@ jobs:
         if ! grep -q "kernelsu/" drivers/Makefile; then
           echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
         fi
+
+        # Eliminar cualquier bandera de perfil afdo o LTO en los Makefile del kernel
+        find . -type f \( -name "Makefile" -o -name "Makefile.*" \) -exec sed -i '/-fprofile-use/d' {} +
+        find . -type f \( -name "Makefile" -o -name "Makefile.*" \) -exec sed -i '/CONFIG_AFDO_PROFILE/d' {} +
 
         DEFCONFIG_FILE=$(find arch/arm64/configs -name "*defconfig" | head -n 1)
         echo "CONFIG_LTO_NONE=y" >> "$DEFCONFIG_FILE"
