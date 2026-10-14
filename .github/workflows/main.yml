@@ -12,10 +12,7 @@ jobs:
 
     - run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache pahole
-
-    - run: |
-        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_clang_host_linux-x86_clang-r416183b clang-toolchain
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache pahole clang lld llvm
 
     - run: |
         cd kernel-6.6
@@ -27,12 +24,8 @@ jobs:
         fi
 
     - run: |
-        export PATH=$(pwd)/clang-toolchain/bin:$PATH
         export ARCH=arm64
         export SUBARCH=arm64
-        export CLANG_TRIPLE=aarch64-linux-gnu-
-        export CROSS_COMPILE=aarch64-linux-gnu-
-        
         cd kernel-6.6
         DEFCONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
         make CC=clang LD=ld.lld ${DEFCONFIG_NAME}
