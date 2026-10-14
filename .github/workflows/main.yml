@@ -12,13 +12,14 @@ jobs:
 
     - run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache
-
-    - run: |
-        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 toolchain
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev xz-utils liblz4-tool ccache gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
     - run: |
         cd kernel-6.6
+        mkdir -p drivers/kernelsu
+        touch drivers/kernelsu/Kconfig
+        echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
+        
         DEFCONFIG_FILE=$(find arch/arm64/configs -name "*defconfig" | head -n 1)
         echo "CONFIG_USB_NET_CDC_EEH=y" >> "$DEFCONFIG_FILE"
         echo "CONFIG_MT76=m" >> "$DEFCONFIG_FILE"
@@ -27,9 +28,8 @@ jobs:
         echo "CONFIG_MT7921U=m" >> "$DEFCONFIG_FILE"
 
     - run: |
-        export PATH=$(pwd)/toolchain/bin:$PATH
         export ARCH=arm64
-        export CROSS_COMPILE=aarch64-linux-android-
+        export CROSS_COMPILE=aarch64-linux-gnu-
         cd kernel-6.6
         make a05m_defconfig
         make -j$(nproc)
