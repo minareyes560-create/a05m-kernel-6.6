@@ -15,8 +15,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev \
-          libelf-dev xz-utils liblz4-tool ccache pahole clang lld llvm LLVM \
-          crossbuild-essential-arm64 aarch64-linux-gnu-gcc
+          libelf-dev xz-utils liblz4-tool ccache pahole clang lld llvm
 
     - name: Prepare KernelSU & Clean AFDO
       run: |
@@ -36,7 +35,6 @@ jobs:
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
-        export CROSS_COMPILE=aarch64-linux-gnu-
         cd kernel-6.6
         
         # Limpiar estados anteriores
