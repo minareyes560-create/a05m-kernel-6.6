@@ -16,9 +16,10 @@ jobs:
 
     - run: |
         cd kernel-6.6
-        if [ ! -d "drivers/kernelsu" ]; then
-          mkdir -p drivers/kernelsu
-          touch drivers/kernelsu/Kconfig
+        rm -rf drivers/kernelsu
+        mkdir -p drivers/kernelsu
+        touch drivers/kernelsu/Kconfig
+        if ! grep -q "kernelsu/" drivers/Makefile; then
           echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
         fi
         
