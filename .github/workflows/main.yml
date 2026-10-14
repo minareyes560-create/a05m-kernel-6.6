@@ -1,4 +1,24 @@
-- name: Prepare KernelSU & Clean AFDO
+name: Compile Galaxy A05 Base Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev \
+          libelf-dev xz-utils liblz4-tool ccache pahole clang lld llvm
+
+    - name: Prepare KernelSU & Clean AFDO
       run: |
         cd kernel-6.6
         rm -rf drivers/kernelsu
@@ -9,7 +29,6 @@
           echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
         fi
 
-        # Limpiar referencias de AFDO y perfiles de Samsung
         grep -rl "kernel.afdo" . | xargs -r sed -i 's/.*kernel.afdo.*/# AFDO removed/g'
         grep -rl "fprofile-sample-use" . | xargs -r sed -i 's/-fprofile-sample-use=[^ ]*//g'
 
@@ -31,3 +50,11 @@
         
         make ARCH=arm64 CC=clang LD=ld.lld LLVM=1 olddefconfig
         make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS="-w"
+
+    - name: Upload Kernel Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: A05-Kernel-Image-Base
+        path: |
+          kernel-6.6/arch/arm64/boot/Image.gz
+          kernel-6.6/arch/arm64/boot/Image
