@@ -13,24 +13,30 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget
 
-      - name: Descargar Toolchain Clang
+      - name: Descargar Toolchain Clang de manera estable
         run: |
-          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 -b main $HOME/clang
+          mkdir -p $HOME/clang
+          cd $HOME/clang
+          # Descargar una versión estable y directa de Clang en formato tar.gz para evitar errores de red de git
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz || \
+          wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
+          tar -xzf clang.tar.gz
+          rm clang.tar.gz
 
       - name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Entrar al directorio del kernel (ajusta el nombre si tu carpeta es diferente)
+          # Entrar al directorio del kernel
           cd kernel-6.6 || cd kernel || cd .
           
-          # Limpiar configuraciones previas y archivos residuales por completo
+          # Limpiar configuraciones previas y archivos residuales
           make mrproper
           
-          # Remover cualquier integración previa de KernelSU si existe en los fuentes
+          # Remover rastro de KernelSU
           rm -rf drivers/kernelsu || true
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
@@ -50,7 +56,7 @@ jobs:
             echo "CONFIG_MT7921U=m"
           } >> .config
           
-          # Actualizar el archivo de configuración con los nuevos valores
+          # Actualizar el archivo de configuración
           make olddefconfig ARCH=arm64
           
           # Compilar el kernel usando Clang
