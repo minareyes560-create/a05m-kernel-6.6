@@ -17,33 +17,47 @@ jobs:
 
       - name: Descargar Toolchain Clang
         run: |
-          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 -b master-kernel-build-2022 $HOME/clang
+          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 -b android-14-release $HOME/clang
 
-      - name: Configurar drivers Panda AXE3000 (mt76)
-        run: |
-          cd kernel-6.6 || cd kernel || true
-          sed -i '/kernelsu/d' drivers/Kconfig || true
-          
-          make ARCH=arm64 gki_defconfig
-          echo "CONFIG_NETDEVICES=y" >> .config
-          echo "CONFIG_WLAN=y" >> .config
-          echo "CONFIG_NL80211_TESTMODE=y" >> .config
-          echo "CONFIG_CFG80211=m" >> .config
-          echo "CONFIG_MAC80211=m" >> .config
-          echo "CONFIG_MT76_CORE=m" >> .config
-          echo "CONFIG_MT76_USB=m" >> .config
-          echo "CONFIG_MT7921U=m" >> .config
-
-      - name: Compilar Kernel
+      - name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          cd kernel-6.6 || cd kernel || true
+          # Entrar al directorio del kernel (ajusta el nombre si tu carpeta es diferente)
+          cd kernel-6.6 || cd kernel || cd .
+          
+          # Limpiar configuraciones previas si las hubiera
+          make mrproper
+          
+          # Configuración base GKI para ARM64
+          make ARCH=arm64 gki_defconfig
+          
+          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
+          {
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
+            echo "CONFIG_NL80211_TESTMODE=y"
+            echo "CONFIG_CFG80211=m"
+            echo "CONFIG_MAC80211=m"
+            echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT7921U=m"
+          } >> .config
+          
+          # Actualizar el archivo de configuración con los nuevos valores
+          make olddefconfig ARCH=arm64
+          
+          # Compilar el kernel usando Clang
           make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-A05-Panda-MonitorMode
-          path: '**/out/arch/arm64/boot/Image.lz4'
+          path: |
+            **/out/arch/arm64/boot/Image.lz4
+            **/arch/arm64/boot/Image.lz4
+            **/out/arch/arm64/boot/Image
+            **/arch/arm64/boot/Image
+        if: always()
