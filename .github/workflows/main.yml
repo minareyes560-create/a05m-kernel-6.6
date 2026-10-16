@@ -13,15 +13,11 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip wget
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git
 
       - name: Descargar Toolchain Clang
         run: |
-          mkdir -p $HOME/clang
-          cd $HOME/clang
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r416183b.tar.gz
-          tar -xzf clang-r416183b.tar.gz
-          rm clang-r416183b.tar.gz
+          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 -b master-kernel-build-2022 $HOME/clang
 
       - name: Configurar drivers Panda AXE3000 (mt76)
         run: |
