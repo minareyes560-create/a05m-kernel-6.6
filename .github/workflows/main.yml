@@ -17,6 +17,8 @@ jobs:
 
       - name: Descargar Toolchain Clang
         run: |
+          git config --global http.version HTTP/1.1
+          git config --global http.postBuffer 524288000
           git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 ~/clang
 
       - name: Configurar drivers Panda AXE3000 (mt76)
