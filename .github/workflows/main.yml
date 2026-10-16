@@ -27,8 +27,13 @@ jobs:
           # Entrar al directorio del kernel (ajusta el nombre si tu carpeta es diferente)
           cd kernel-6.6 || cd kernel || cd .
           
-          # Limpiar configuraciones previas si las hubiera
+          # Limpiar configuraciones previas y archivos residuales por completo
           make mrproper
+          
+          # Remover cualquier integración previa de KernelSU si existe en los fuentes
+          rm -rf drivers/kernelsu || true
+          sed -i '/kernelsu/d' drivers/Makefile || true
+          sed -i '/kernelsu/d' drivers/Kconfig || true
           
           # Configuración base GKI para ARM64
           make ARCH=arm64 gki_defconfig
