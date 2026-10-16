@@ -24,6 +24,9 @@ jobs:
       - name: Configurar drivers Panda AXE3000 (mt76)
         run: |
           cd kernel-6.6 || cd kernel || true
+          # Deshabilitar la inclusión de KernelSU si no está presente para evitar el error de Kconfig
+          sed -i '/kernelsu/d' drivers/Kconfig || true
+          
           make ARCH=arm64 gki_defconfig
           echo "CONFIG_NETDEVICES=y" >> .config
           echo "CONFIG_WLAN=y" >> .config
