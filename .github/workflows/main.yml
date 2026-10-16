@@ -30,16 +30,26 @@ jobs:
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Entrar al directorio del kernel
-          cd kernel-6.6 || cd kernel || cd .
+          # Entrar al directorio del kernel de manera segura (ajusta el nombre si es diferente)
+          if [ -d "a05m-kernel-6.6" ]; then
+            cd a05m-kernel-6.6
+          elif [ -d "kernel-6.6" ]; then
+            cd kernel-6.6
+          elif [ -d "kernel" ]; then
+            cd kernel
+          fi
           
+          # Remover cualquier rastro de KernelSU para evitar errores de Makefile faltante
+          rm -rf drivers/kernelsu || true
+          if [ -f "drivers/Makefile" ]; then
+            sed -i '/kernelsu/d' drivers/Makefile || true
+          fi
+          if [ -f "drivers/Kconfig" ]; then
+            sed -i '/kernelsu/d' drivers/Kconfig || true
+          fi
+
           # Limpiar configuraciones previas y archivos residuales
           make mrproper
-          
-          # Remover rastro de KernelSU
-          rm -rf drivers/kernelsu || true
-          sed -i '/kernelsu/d' drivers/Makefile || true
-          sed -i '/kernelsu/d' drivers/Kconfig || true
           
           # Configuración base GKI para ARM64
           make ARCH=arm64 gki_defconfig
