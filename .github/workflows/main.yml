@@ -1,4 +1,4 @@
-name: Compile Galaxy A05 Base Kernel
+name: Compilar Kernel A05 Modo Monitor
 
 on:
   workflow_dispatch:
@@ -6,32 +6,38 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev \
-          libelf-dev xz-utils liblz4-tool ccache pahole clang lld llvm
+      - name: Configurar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip
 
-    - name: Build Clean Kernel
-      run: |
-        export ARCH=arm64
-        export SUBARCH=arm64
-        cd kernel-6.6
-        
-        DEFCONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
-        
-        make ARCH=arm64 CC=clang LD=ld.lld LLVM=1 ${DEFCONFIG_NAME}
-        make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS="-w"
+      - name: Descargar Toolchain Clang
+        run: |
+          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+/refs/heads/main/clang-r488900 --depth=1 ~/clang
 
-    - name: Upload Kernel Image
-      uses: actions/upload-artifact@v4
-      with:
-        name: A05-Kernel-Image-Clean
-        path: |
-          kernel-6.6/arch/arm64/boot/Image.gz
-          kernel-6.6/arch/arm64/boot/Image
+      - name: Configurar drivers Panda AXE3000 (mt76)
+        run: |
+          make ARCH=arm64 gki_defconfig
+          echo "CONFIG_NETDEVICES=y" >> .config
+          echo "CONFIG_WLAN=y" >> .config
+          echo "CONFIG_NL80211_TESTMODE=y" >> .config
+          echo "CONFIG_CFG80211=m" >> .config
+          echo "CONFIG_MAC80211=m" >> .config
+          echo "CONFIG_MT76_CORE=m" >> .config
+          echo "CONFIG_MT76_USB=m" >> .config
+          echo "CONFIG_MT7921U=m" >> .config
+
+      - name: Compilar Kernel
+        run: |
+          export PATH=~/clang/bin:$PATH
+          make -j$(nproc) ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android-
+
+      - name: Subir Kernel listo
+        uses: actions/upload-artifact@v3
+        with:
+          name: Kernel-A05-Panda-MonitorMode
+          path: out/arch/arm64/boot/Image.lz4
