@@ -13,7 +13,7 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget python3 rsync
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget python3 rsync cpio
 
       - name: Descargar Toolchain Clang de Android
         run: |
@@ -24,50 +24,56 @@ jobs:
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
-      - name: Configurar drivers y Compilar Kernel directamente
+      - name: Configurar drivers y Compilar Kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Entrar automáticamente al directorio raíz real del kernel donde esté el Makefile principal
+          # Ubicar el directorio raíz real del kernel
           KERNEL_DIR=$(find . -maxdepth 4 -name "Makefile" -exec grep -l "VERSION =" {} + | head -n 1 | xargs dirname)
           if [ -n "$KERNEL_DIR" ]; then
             echo "Entrando a: $KERNEL_DIR"
             cd "$KERNEL_DIR"
           fi
           
-          # Limpiar rastros de KernelSU
+          # Remover KernelSU si interfiere
           rm -rf drivers/kernelsu || true
           if [ -f "drivers/Makefile" ]; then
             sed -i '/kernelsu/d' drivers/Makefile || true
           fi
-          if [ -f "drivers/Kconfig" ]; then
-            sed -i '/kernelsu/d' drivers/Kconfig || true
-          fi
 
-          # Limpieza general sin arriesgar dependencias de arquitectura
-          make ARCH=arm64 clean
-          
-          # Cargar configuración base GKI
-          make ARCH=arm64 gki_defconfig
-          
-          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76 directamente
-          {
-            echo "CONFIG_NETDEVICES=y"
-            echo "CONFIG_WLAN=y"
-            echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_CFG80211=y"
-            echo "CONFIG_MAC80211=y"
-            echo "CONFIG_MT76_CORE=y"
-            echo "CONFIG_MT76_USB=y"
-            echo "CONFIG_MT7921U=y"
-          } >> .config
-          
-          # Actualizar configuración del kernel
-          make ARCH=arm64 olddefconfig
-          
-          # Compilar la imagen evitando tareas innecesarias de cabeceras de usuario
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
+          # Si el repositorio incluye el script oficial build.sh de Android, usarlo directamente
+          if [ -f "build.sh" ]; then
+            echo "Script build.sh detectado. Compilando mediante el método oficial..."
+            export ARCH=arm64
+            export CC=clang
+            export LD=ld.lld
+            export LLVM=1
+            export LLVM_IAS=1
+            ./build.sh
+          else
+            echo "Usando compilación estándar con preparación de cabeceras..."
+            make ARCH=arm64 clean
+            make ARCH=arm64 gki_defconfig
+            
+            # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
+            {
+              echo "CONFIG_NETDEVICES=y"
+              echo "CONFIG_WLAN=y"
+              echo "CONFIG_NL80211_TESTMODE=y"
+              echo "CONFIG_CFG80211=y"
+              echo "CONFIG_MAC80211=y"
+              echo "CONFIG_MT76_CORE=y"
+              echo "CONFIG_MT76_USB=y"
+              echo "CONFIG_MT7921U=y"
+            } >> .config
+            
+            make ARCH=arm64 olddefconfig
+            
+            # Preparar cabeceras y submódulos antes de compilar Image para evitar el error HDRINST
+            make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
+            make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
+          fi
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
@@ -76,4 +82,5 @@ jobs:
           path: |
             **/arch/arm64/boot/Image.lz4
             **/arch/arm64/boot/Image
+            **/out/arch/arm64/boot/Image
         if: always()
