@@ -24,7 +24,6 @@ jobs:
       - name: Configurar drivers Panda AXE3000 (mt76)
         run: |
           cd kernel-6.6 || cd kernel || true
-          # Deshabilitar la inclusión de KernelSU si no está presente para evitar el error de Kconfig
           sed -i '/kernelsu/d' drivers/Kconfig || true
           
           make ARCH=arm64 gki_defconfig
@@ -41,7 +40,7 @@ jobs:
         run: |
           export PATH=~/clang/bin:$PATH
           cd kernel-6.6 || cd kernel || true
-          make -j$(nproc) ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android-
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
