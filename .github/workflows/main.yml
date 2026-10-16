@@ -13,9 +13,9 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget python3 rsync
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget python3 rsync libcfitsio-dev
 
-      - name: Descargar Toolchain Clang de manera estable
+      - name: Descargar Toolchain Clang de Android
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
@@ -29,13 +29,11 @@ jobs:
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Entrar al directorio del kernel si está anidado
-          if [ -d "a05m-kernel-6.6" ]; then
-            cd a05m-kernel-6.6
-          elif [ -d "kernel-6.6" ]; then
-            cd kernel-6.6
-          elif [ -d "kernel" ]; then
-            cd kernel
+          # Ubicar el directorio que contiene el Makefile principal del Kernel
+          KERNEL_DIR=$(find . -maxdepth 4 -name "Makefile" -exec grep -l "VERSION =" {} + | head -n 1 | xargs dirname)
+          if [ -n "$KERNEL_DIR" ]; then
+            echo "Directorio del kernel encontrado en: $KERNEL_DIR"
+            cd "$KERNEL_DIR"
           fi
           
           # Remover KernelSU previo
@@ -47,38 +45,35 @@ jobs:
             sed -i '/kernelsu/d' drivers/Kconfig || true
           fi
 
-          # Limpieza limpia y creación del directorio de salida
-          make ARCH=arm64 clean
-          mkdir -p out
+          # Limpieza e inicio
+          make ARCH=arm64 distclean || make ARCH=arm64 clean
           
-          # Configuración base GKI en el directorio out
-          make O=out ARCH=arm64 gki_defconfig
+          # Configuración base GKI ARM64
+          make ARCH=arm64 gki_defconfig
           
-          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
+          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76 directamente en .config
           {
             echo "CONFIG_NETDEVICES=y"
             echo "CONFIG_WLAN=y"
             echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_CFG80211=m"
-            echo "CONFIG_MAC80211=m"
-            echo "CONFIG_MT76_CORE=m"
-            echo "CONFIG_MT76_USB=m"
-            echo "CONFIG_MT7921U=m"
-          } >> out/.config
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_MAC80211=y"
+            echo "CONFIG_MT76_CORE=y"
+            echo "CONFIG_MT76_USB=y"
+            echo "CONFIG_MT7921U=y"
+          } >> .config
           
-          # Aplicar nueva configuración
-          make O=out ARCH=arm64 olddefconfig
+          # Actualizar configuración
+          make ARCH=arm64 olddefconfig
           
-          # Compilar el kernel directamente
-          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
+          # Compilar únicamente la imagen del kernel para evitar errores de cabeceras de usuario (HDRINST)
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-A05-Panda-MonitorMode
           path: |
-            **/out/arch/arm64/boot/Image.lz4
             **/arch/arm64/boot/Image.lz4
-            **/out/arch/arm64/boot/Image
             **/arch/arm64/boot/Image
         if: always()
