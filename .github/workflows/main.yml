@@ -37,7 +37,7 @@ jobs:
           make -j$(nproc) ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android-
 
       - name: Subir Kernel listo
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Kernel-A05-Panda-MonitorMode
           path: out/arch/arm64/boot/Image.lz4
