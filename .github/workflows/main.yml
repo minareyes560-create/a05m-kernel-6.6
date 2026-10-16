@@ -13,15 +13,14 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget python3 rsync
 
       - name: Descargar Toolchain Clang de manera estable
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          # Descargar una versión estable y directa de Clang en formato tar.gz para evitar errores de red de git
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz || \
-          wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-releases/clang-r450784d.tar.gz -O clang.tar.gz || \
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
@@ -30,7 +29,7 @@ jobs:
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Entrar al directorio del kernel de manera segura (ajusta el nombre si es diferente)
+          # Entrar al directorio del kernel si está anidado
           if [ -d "a05m-kernel-6.6" ]; then
             cd a05m-kernel-6.6
           elif [ -d "kernel-6.6" ]; then
@@ -39,7 +38,7 @@ jobs:
             cd kernel
           fi
           
-          # Remover cualquier rastro de KernelSU para evitar errores de Makefile faltante
+          # Remover KernelSU previo
           rm -rf drivers/kernelsu || true
           if [ -f "drivers/Makefile" ]; then
             sed -i '/kernelsu/d' drivers/Makefile || true
@@ -48,11 +47,12 @@ jobs:
             sed -i '/kernelsu/d' drivers/Kconfig || true
           fi
 
-          # Limpiar configuraciones previas y archivos residuales
-          make mrproper
+          # Limpieza limpia y creación del directorio de salida
+          make ARCH=arm64 clean
+          mkdir -p out
           
-          # Configuración base GKI para ARM64
-          make ARCH=arm64 gki_defconfig
+          # Configuración base GKI en el directorio out
+          make O=out ARCH=arm64 gki_defconfig
           
           # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
           {
@@ -64,13 +64,13 @@ jobs:
             echo "CONFIG_MT76_CORE=m"
             echo "CONFIG_MT76_USB=m"
             echo "CONFIG_MT7921U=m"
-          } >> .config
+          } >> out/.config
           
-          # Actualizar el archivo de configuración
-          make olddefconfig ARCH=arm64
+          # Aplicar nueva configuración
+          make O=out ARCH=arm64 olddefconfig
           
-          # Compilar el kernel usando Clang
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
+          # Compilar el kernel directamente
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
