@@ -13,7 +13,7 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev
 
       - name: Descargar Toolchain Clang
         run: |
@@ -36,11 +36,9 @@ jobs:
 
       - name: Compilar Kernel
         run: |
-          # Encontrar la carpeta exacta donde están los binarios de clang dentro del clonado
-          CLANG_BIN=$(find $HOME/clang -type d -name "bin" | head -n 1)
-          export PATH="$CLANG_BIN:$PATH"
+          export PATH="$HOME/clang/bin:$PATH"
+          echo "Usando binarios desde: $HOME/clang/bin"
           
-          echo "Usando binarios desde: $CLANG_BIN"
           cd kernel-6.6 || cd kernel || true
           make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
