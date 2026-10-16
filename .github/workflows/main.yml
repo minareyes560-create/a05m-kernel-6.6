@@ -17,7 +17,7 @@ jobs:
 
       - name: Descargar Toolchain Clang
         run: |
-          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 -b android-14-release $HOME/clang
+          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 -b main $HOME/clang
 
       - name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
         run: |
