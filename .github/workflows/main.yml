@@ -38,7 +38,8 @@ jobs:
 
       - name: Compilar Kernel
         run: |
-          export PATH=~/clang/bin:$PATH
+          CLANG_PATH="$HOME/clang/bin"
+          export PATH="$CLANG_PATH:$PATH"
           cd kernel-6.6 || cd kernel || true
           make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
