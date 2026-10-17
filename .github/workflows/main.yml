@@ -41,7 +41,7 @@ jobs:
           # Configuración base GKI para ARM64
           make ARCH=arm64 gki_defconfig
           
-          # Inyectar únicamente las opciones compatibles con el kernel GKI
+          # Inyectar soporte para Wi-Fi y los drivers mt76 / mt7921u de la antena
           {
             echo "CONFIG_NL80211_TESTMODE=y"
             echo "CONFIG_CFG80211=m"
@@ -51,11 +51,10 @@ jobs:
             echo "CONFIG_MT7921U=m"
           } >> arch/arm64/configs/gki_defconfig
           
-          # Volver a aplicar la configuración GKI para que procese los nuevos parámetros de forma segura
           make ARCH=arm64 gki_defconfig
           
-          # Compilar el kernel usando Clang
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
+          # Compilar la imagen del kernel directamente evitando conflictos de sub-make en headers
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image.lz4 Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
