@@ -53,6 +53,31 @@ jobs:
                       pass
           "
 
+          # Neutralizar la regla headers_install en el Makefile raíz para evitar el error HDRINST
+          if [ -f "Makefile" ]; then
+            python3 -c "
+            with open('Makefile', 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            new_lines = []
+            skip = False
+            for line in lines:
+                if line.startswith('headers_install'):
+                    new_lines.append(line)
+                    new_lines.append('\t@true\n')
+                    skip = True
+                    continue
+                if skip:
+                    if line.startswith('\t') or line.startswith(' '):
+                        continue
+                    else:
+                        skip = False
+                new_lines.append(line)
+            with open('Makefile', 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            print('headers_install neutralizado correctamente.')
+            "
+          fi
+
           # Configuración limpia del Kernel GKI
           make ARCH=arm64 clean
           make ARCH=arm64 gki_defconfig
@@ -71,8 +96,8 @@ jobs:
           
           make ARCH=arm64 olddefconfig
           
-          # Compilar el kernel desactivando explícitamente la generación de cabeceras de usuario (HDRINST)
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- SKIP_HDR_INSTALL=1 Image
+          # Compilar la imagen del kernel de manera directa
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
