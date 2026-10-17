@@ -36,9 +36,8 @@ jobs:
             cd "$KERNEL_DIR"
           fi
           
-          # Eliminar la carpeta de KernelSU y purgar cualquier línea que la llame en Kconfig o Makefiles
+          # Eliminar KernelSU y limpiar referencias en Kconfig y Makefiles
           rm -rf drivers/kernelsu || true
-          
           python3 -c "
           import os, glob
           target_files = ['drivers/Kconfig', 'drivers/Makefile'] + glob.glob('drivers/**/Kconfig', recursive=True) + glob.glob('drivers/**/Makefile', recursive=True)
@@ -50,43 +49,30 @@ jobs:
                       new_lines = [line for line in lines if 'kernelsu' not in line.lower()]
                       with open(path, 'w', encoding='utf-8') as f:
                           f.writelines(new_lines)
-                      print(f'Limpio exitosamente: {path}')
-                  except Exception as e:
-                      print(f'Error en {path}: {e}')
+                  except Exception:
+                      pass
           "
 
-          # Si el repositorio incluye el script oficial build.sh de Android, usarlo directamente
-          if [ -f "build.sh" ]; then
-            echo "Script build.sh detectado. Compilando mediante el método oficial..."
-            export ARCH=arm64
-            export CC=clang
-            export LD=ld.lld
-            export LLVM=1
-            export LLVM_IAS=1
-            ./build.sh
-          else
-            echo "Usando compilación estándar con preparación de cabeceras..."
-            make ARCH=arm64 clean
-            make ARCH=arm64 gki_defconfig
-            
-            # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
-            {
-              echo "CONFIG_NETDEVICES=y"
-              echo "CONFIG_WLAN=y"
-              echo "CONFIG_NL80211_TESTMODE=y"
-              echo "CONFIG_CFG80211=y"
-              echo "CONFIG_MAC80211=y"
-              echo "CONFIG_MT76_CORE=y"
-              echo "CONFIG_MT76_USB=y"
-              echo "CONFIG_MT7921U=y"
-            } >> .config
-            
-            make ARCH=arm64 olddefconfig
-            
-            # Preparar cabeceras y submódulos antes de compilar Image
-            make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
-            make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
-          fi
+          # Configuración limpia del Kernel GKI
+          make ARCH=arm64 clean
+          make ARCH=arm64 gki_defconfig
+          
+          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76 para la antena Panda
+          {
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
+            echo "CONFIG_NL80211_TESTMODE=y"
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_MAC80211=y"
+            echo "CONFIG_MT76_CORE=y"
+            echo "CONFIG_MT76_USB=y"
+            echo "CONFIG_MT7921U=y"
+          } >> .config
+          
+          make ARCH=arm64 olddefconfig
+          
+          # Compilar el kernel desactivando explícitamente la generación de cabeceras de usuario (HDRINST)
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- SKIP_HDR_INSTALL=1 Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
