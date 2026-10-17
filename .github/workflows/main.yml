@@ -33,18 +33,18 @@ jobs:
           # Entrar al directorio del kernel
           cd kernel-6.6 || cd kernel || cd .
           
-          # Limpiar configuraciones previas y archivos residuales
-          make mrproper
-          
-          # Remover rastro de KernelSU (Solución al error del Makefile)
-          rm -rf drivers/kernelsu || true
+          # 1. Eliminar referencias a KernelSU ANTES de hacer la limpieza (make mrproper)
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
+          rm -rf drivers/kernelsu || true
           
-          # Configuración base GKI para ARM64
+          # 2. Limpiar configuraciones previas y archivos residuales
+          make mrproper
+          
+          # 3. Configuración base GKI para ARM64
           make ARCH=arm64 gki_defconfig
           
-          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
+          # 4. Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
           {
             echo "CONFIG_NETDEVICES=y"
             echo "CONFIG_WLAN=y"
@@ -56,10 +56,10 @@ jobs:
             echo "CONFIG_MT7921U=m"
           } >> .config
           
-          # Actualizar el archivo de configuración
+          # 5. Actualizar el archivo de configuración
           make olddefconfig ARCH=arm64
           
-          # Compilar el kernel usando Clang
+          # 6. Compilar el kernel usando Clang
           make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Subir Kernel listo
