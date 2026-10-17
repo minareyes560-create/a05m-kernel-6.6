@@ -13,68 +13,62 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget python3 rsync cpio
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget
 
-      - name: Descargar Toolchain Clang de Android
+      - name: Descargar Toolchain Clang de manera estable
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-releases/clang-r450784d.tar.gz -O clang.tar.gz || \
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz
+          # Descargar una versión estable y directa de Clang en formato tar.gz para evitar errores de red de git
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz || \
+          wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
-      - name: Configurar drivers y Compilar Kernel
+      - name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Ubicar el directorio raíz real del kernel
-          KERNEL_DIR=$(find . -maxdepth 4 -name "Makefile" -exec grep -l "VERSION =" {} + | head -n 1 | xargs dirname)
-          if [ -n "$KERNEL_DIR" ]; then
-            echo "Entrando a: $KERNEL_DIR"
-            cd "$KERNEL_DIR"
-          fi
+          # Entrar al directorio del kernel
+          cd kernel-6.6 || cd kernel || cd .
           
-          # Restablecer repositorio y limpiar KernelSU
-          git reset --hard
-          git clean -fd
+          # Limpiar configuraciones previas y archivos residuales
+          make mrproper
+          
+          # Remover rastro de KernelSU
           rm -rf drivers/kernelsu || true
-          find drivers/ -type f \( -name "Kconfig*" -o -name "Makefile" \) -exec sed -i '/kernelsu/d' {} + || true
-
-          # Desactivar la línea de dependencias de cabeceras conflictivas en el Makefile raíz
-          if [ -f "Makefile" ]; then
-            sed -i '/core-y += kernel/s/^/#/' Makefile || true
-            sed -i 's/all: $(all-sub-dirs)/all:/g' Makefile || true
-          fi
-
-          # Limpieza general y configuración
-          make ARCH=arm64 clean
+          sed -i '/kernelsu/d' drivers/Makefile || true
+          sed -i '/kernelsu/d' drivers/Kconfig || true
+          
+          # Configuración base GKI para ARM64
           make ARCH=arm64 gki_defconfig
           
-          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76 para la antena Panda
+          # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
           {
             echo "CONFIG_NETDEVICES=y"
             echo "CONFIG_WLAN=y"
             echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_CFG80211=y"
-            echo "CONFIG_MAC80211=y"
-            echo "CONFIG_MT76_CORE=y"
-            echo "CONFIG_MT76_USB=y"
-            echo "CONFIG_MT7921U=y"
+            echo "CONFIG_CFG80211=m"
+            echo "CONFIG_MAC80211=m"
+            echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT7921U=m"
           } >> .config
           
-          make ARCH=arm64 olddefconfig
+          # Actualizar el archivo de configuración
+          make olddefconfig ARCH=arm64
           
-          # Compilar la imagen directamente con Clang y LLVM
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
+          # Compilar el kernel usando Clang
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-A05-Panda-MonitorMode
           path: |
+            **/out/arch/arm64/boot/Image.lz4
             **/arch/arm64/boot/Image.lz4
-            **/arch/arm64/boot/Image
             **/out/arch/arm64/boot/Image
+            **/arch/arm64/boot/Image
         if: always()
