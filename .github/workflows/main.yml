@@ -36,17 +36,18 @@ jobs:
             cd "$KERNEL_DIR"
           fi
           
-          # Eliminar KernelSU y limpiar referencias en Kconfig y Makefiles de forma segura
+          # Restablecer por completo el repositorio para eliminar cualquier Makefile dañado o modificado
+          git reset --hard
+          git clean -fd
+          
+          # Eliminar KernelSU y limpiar referencias en Kconfig de forma segura
           rm -rf drivers/kernelsu || true
           find drivers/ -type f \( -name "Kconfig*" -o -name "Makefile" \) -exec sed -i '/kernelsu/d' {} + || true
 
-          # Desactivar headers_install en el Makefile raíz para evitar errores de compilación cruzada (HDRINST)
-          if [ -f "Makefile" ]; then
-            sed -i '/^headers_install:/,/^[a-z]/{s/^/#/;}' Makefile || true
-          fi
-
-          # Configuración limpia del Kernel GKI
+          # Limpieza general del make
           make ARCH=arm64 clean
+
+          # Configuración base GKI
           make ARCH=arm64 gki_defconfig
           
           # Inyectar soporte para Wi-Fi, modo monitor y drivers mt76 para la antena Panda
@@ -63,7 +64,7 @@ jobs:
           
           make ARCH=arm64 olddefconfig
           
-          # Compilar la imagen del kernel de manera directa
+          # Compilar la imagen directamente con Clang y LLVM
           make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
 
       - name: Subir Kernel listo
