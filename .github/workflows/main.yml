@@ -36,23 +36,23 @@ jobs:
             cd "$KERNEL_DIR"
           fi
           
-          # Eliminar completamente la carpeta de KernelSU y limpiar todas sus referencias internas
+          # Eliminar la carpeta de KernelSU y purgar cualquier línea que la llame en Kconfig o Makefiles
           rm -rf drivers/kernelsu || true
           
-          # Limpieza profunda mediante Python para asegurar que ningún Kconfig o Makefile busque archivos inexistentes
           python3 -c "
-          import glob
-          for filepath in glob.glob('drivers/**/Kconfig', recursive=True) + glob.glob('drivers/**/Makefile', recursive=True):
-              try:
-                  with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                      content = f.read()
-                  if 'kernelsu' in content.lower():
-                      new_content = '\n'.join([line for line in content.splitlines() if 'kernelsu' not in line.lower()])
-                      with open(filepath, 'w', encoding='utf-8') as f:
-                          f.write(new_content)
-                      print(f'Referencias eliminadas en: {filepath}')
-              except Exception as e:
-                  print(f'Error en {filepath}: {e}')
+          import os, glob
+          target_files = ['drivers/Kconfig', 'drivers/Makefile'] + glob.glob('drivers/**/Kconfig', recursive=True) + glob.glob('drivers/**/Makefile', recursive=True)
+          for path in target_files:
+              if os.path.exists(path):
+                  try:
+                      with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                          lines = f.readlines()
+                      new_lines = [line for line in lines if 'kernelsu' not in line.lower()]
+                      with open(path, 'w', encoding='utf-8') as f:
+                          f.writelines(new_lines)
+                      print(f'Limpio exitosamente: {path}')
+                  except Exception as e:
+                      print(f'Error en {path}: {e}')
           "
 
           # Si el repositorio incluye el script oficial build.sh de Android, usarlo directamente
