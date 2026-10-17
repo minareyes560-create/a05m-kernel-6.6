@@ -36,11 +36,24 @@ jobs:
             cd "$KERNEL_DIR"
           fi
           
-          # Remover KernelSU si interfiere
+          # Eliminar completamente la carpeta de KernelSU y limpiar todas sus referencias internas
           rm -rf drivers/kernelsu || true
-          if [ -f "drivers/Makefile" ]; then
-            sed -i '/kernelsu/d' drivers/Makefile || true
-          fi
+          
+          # Limpieza profunda mediante Python para asegurar que ningún Kconfig o Makefile busque archivos inexistentes
+          python3 -c "
+          import glob
+          for filepath in glob.glob('drivers/**/Kconfig', recursive=True) + glob.glob('drivers/**/Makefile', recursive=True):
+              try:
+                  with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                      content = f.read()
+                  if 'kernelsu' in content.lower():
+                      new_content = '\n'.join([line for line in content.splitlines() if 'kernelsu' not in line.lower()])
+                      with open(filepath, 'w', encoding='utf-8') as f:
+                          f.write(new_content)
+                      print(f'Referencias eliminadas en: {filepath}')
+              except Exception as e:
+                  print(f'Error en {filepath}: {e}')
+          "
 
           # Si el repositorio incluye el script oficial build.sh de Android, usarlo directamente
           if [ -f "build.sh" ]; then
@@ -70,7 +83,7 @@ jobs:
             
             make ARCH=arm64 olddefconfig
             
-            # Preparar cabeceras y submódulos antes de compilar Image para evitar el error HDRINST
+            # Preparar cabeceras y submódulos antes de compilar Image
             make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
             make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
           fi
