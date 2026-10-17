@@ -13,13 +13,12 @@ jobs:
       - name: Configurar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl
 
       - name: Descargar Toolchain Clang de manera estable
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          # Descargar una versión estable y directa de Clang en formato tar.gz para evitar errores de red de git
           wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz || \
           wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
           tar -xzf clang.tar.gz
@@ -33,33 +32,37 @@ jobs:
           # Entrar al directorio del kernel
           cd kernel-6.6 || cd kernel || cd .
           
-          # 1. Eliminar referencias a KernelSU ANTES de hacer la limpieza (make mrproper)
+          # Limpiar referencias de KernelSU y archivos residuales
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
           rm -rf drivers/kernelsu || true
-          
-          # 2. Limpiar configuraciones previas y archivos residuales
           make mrproper
           
-          # 3. Configuración base GKI para ARM64
+          # Configuración base GKI para ARM64
           make ARCH=arm64 gki_defconfig
           
-          # 4. Inyectar soporte para Wi-Fi, modo monitor y drivers mt76
+          # Inyectar soporte completo para USB, Wi-Fi y los drivers mt76 / mt7921u de la antena
           {
             echo "CONFIG_NETDEVICES=y"
             echo "CONFIG_WLAN=y"
+            echo "CONFIG_USB=y"
+            echo "CONFIG_USB_SUPPORT=y"
+            echo "CONFIG_USB_EHCI_HCD=y"
+            echo "CONFIG_USB_OHCI_HCD=y"
             echo "CONFIG_NL80211_TESTMODE=y"
             echo "CONFIG_CFG80211=m"
             echo "CONFIG_MAC80211=m"
             echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_LEDS=y"
             echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT7921_COMMON=m"
             echo "CONFIG_MT7921U=m"
           } >> .config
           
-          # 5. Actualizar el archivo de configuración
+          # Actualizar el archivo de configuración
           make olddefconfig ARCH=arm64
           
-          # 6. Compilar el kernel usando Clang
+          # Compilar el kernel usando Clang con variables limpias
           make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Subir Kernel listo
