@@ -36,7 +36,7 @@ jobs:
           # Limpiar configuraciones previas y archivos residuales
           make mrproper
           
-          # Remover rastro de KernelSU
+          # Remover rastro de KernelSU (Solución al error del Makefile)
           rm -rf drivers/kernelsu || true
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
