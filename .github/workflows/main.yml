@@ -36,46 +36,13 @@ jobs:
             cd "$KERNEL_DIR"
           fi
           
-          # Eliminar KernelSU y limpiar referencias en Kconfig y Makefiles
+          # Eliminar KernelSU y limpiar referencias en Kconfig y Makefiles de forma segura
           rm -rf drivers/kernelsu || true
-          python3 -c "
-          import os, glob
-          target_files = ['drivers/Kconfig', 'drivers/Makefile'] + glob.glob('drivers/**/Kconfig', recursive=True) + glob.glob('drivers/**/Makefile', recursive=True)
-          for path in target_files:
-              if os.path.exists(path):
-                  try:
-                      with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                          lines = f.readlines()
-                      new_lines = [line for line in lines if 'kernelsu' not in line.lower()]
-                      with open(path, 'w', encoding='utf-8') as f:
-                          f.writelines(new_lines)
-                  except Exception:
-                      pass
-          "
+          find drivers/ -type f \( -name "Kconfig*" -o -name "Makefile" \) -exec sed -i '/kernelsu/d' {} + || true
 
-          # Neutralizar la regla headers_install en el Makefile raíz para evitar el error HDRINST
+          # Desactivar headers_install en el Makefile raíz para evitar errores de compilación cruzada (HDRINST)
           if [ -f "Makefile" ]; then
-            python3 -c "
-            with open('Makefile', 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            new_lines = []
-            skip = False
-            for line in lines:
-                if line.startswith('headers_install'):
-                    new_lines.append(line)
-                    new_lines.append('\t@true\n')
-                    skip = True
-                    continue
-                if skip:
-                    if line.startswith('\t') or line.startswith(' '):
-                        continue
-                    else:
-                        skip = False
-                new_lines.append(line)
-            with open('Makefile', 'w', encoding='utf-8') as f:
-                f.writelines(new_lines)
-            print('headers_install neutralizado correctamente.')
-            "
+            sed -i '/^headers_install:/,/^[a-z]/{s/^/#/;}' Makefile || true
           fi
 
           # Configuración limpia del Kernel GKI
