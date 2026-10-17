@@ -19,15 +19,15 @@ jobs:
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-releases/clang-r450784d.tar.gz -O clang.tar.gz || \
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz
-          tar -xzf clang.tar.gz
-          rm clang.tar.gz
+          # Clonar la toolchain oficial de Clang para evitar errores 404 en enlaces tarball directos
+          git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 clang-android
+          echo "$HOME/clang/clang-android/llvm/bin" >> $GITHUB_PATH
 
       - name: Configurar drivers y Compilar Kernel
         run: |
-          export PATH="$HOME/clang/bin:$PATH"
-          echo "Usando binarios desde: $HOME/clang/bin"
+          # Asegurar que el PATH incluya Clang
+          export PATH="$HOME/clang/clang-android/llvm/bin:$PATH"
+          echo "Usando binarios desde: $(which clang)"
           
           # Ubicar el directorio raíz real del kernel
           KERNEL_DIR=$(find . -maxdepth 4 -name "Makefile" -exec grep -l "VERSION =" {} + | head -n 1 | xargs dirname)
@@ -64,8 +64,20 @@ jobs:
           
           make ARCH=arm64 olddefconfig
           
-          # Compilar la imagen directamente con Clang y LLVM
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- Image
+          # Compilar la imagen con Clang, LLVM y las herramientas cruzadas correctas
+          make -j$(nproc) ARCH=arm64 \
+            CC=clang \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
