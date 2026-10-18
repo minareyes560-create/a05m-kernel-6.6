@@ -1,35 +1,9 @@
-name: Compilar Kernel A05 Modo Monitor
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clonar repositorio
-        uses: actions/checkout@v4
-
-      - name: Configurar dependencias
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl
-
-      - name: Descargar Toolchain Clang de manera estable
-        run: |
-          mkdir -p $HOME/clang
-          cd $HOME/clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz || \
-          wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
-          tar -xzf clang.tar.gz
-          rm clang.tar.gz
-
-      - name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
+- name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Ubicar correctamente la carpeta del kernel
+          # 1. Ubicar correctamente la carpeta del kernel
           if [ -d "kernel-6.6/kernel-6.6" ]; then
             cd kernel-6.6/kernel-6.6
           elif [ -d "kernel-6.6" ]; then
@@ -42,39 +16,46 @@ jobs:
           
           echo "Directorio actual de trabajo: $(pwd)"
           
-          # Limpiar referencias de KernelSU y archivos residuales
+          # 2. Limpiar referencias de KernelSU y archivos residuales
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
           rm -rf drivers/kernelsu || true
           make mrproper
           
-          # Crear directorio out y generar configuración base pasando las variables directamente
+          # 3. Descargar e integrar el código fuente del driver mt76 de MediaTek
+          mkdir -p drivers/net/wireless/mediatek
+          if [ ! -d "drivers/net/wireless/mediatek/mt76" ]; then
+            git clone --depth=1 https://github.com/openwrt/mt76.git drivers/net/wireless/mediatek/mt76
+          fi
+
+          # Añadir mt76 al Makefile y Kconfig de wireless/mediatek si no están presentes
+          grep -q "mt76" drivers/net/wireless/mediatek/Makefile || echo "obj-\$(CONFIG_MT76_CORE) += mt76/" >> drivers/net/wireless/mediatek/Makefile
+          grep -q "mt76" drivers/net/wireless/mediatek/Kconfig || echo "source \"drivers/net/wireless/mediatek/mt76/Kconfig\"" >> drivers/net/wireless/mediatek/Kconfig
+
+          # 4. Crear directorio out y generar configuración base
           mkdir -p out
           make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- gki_defconfig
           
-          # Inyectar soporte para Wi-Fi y los drivers mt76 / mt7921u de la antena en el .config generado
+          # 5. Inyectar soporte completo para Wi-Fi, modo monitor y los drivers de la Panda AXE3000
           {
-            echo "CONFIG_NL80211_TESTMODE=y"
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
             echo "CONFIG_CFG80211=m"
             echo "CONFIG_MAC80211=m"
+            echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
+            echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
+            echo "CONFIG_NL80211_TESTMODE=y"
+            echo "CONFIG_MAC80211_MESH=y"
             echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_LEDS=y"
             echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT76_CONNAC_LIB=m"
+            echo "CONFIG_MT7921_COMMON=m"
             echo "CONFIG_MT7921U=m"
           } >> out/.config
           
-          # Actualizar la configuración con los nuevos drivers añadidos
+          # 6. Actualizar la configuración con las nuevas opciones
           make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
           
-          # Compilar pasando todas las variables de arquitectura y toolchain directamente al make
-          make -j$(nproc) O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
-
-      - name: Subir Kernel listo
-        uses: actions/upload-artifact@v4
-        with:
-          name: Kernel-A05-Panda-MonitorMode
-          path: |
-            **/out/arch/arm64/boot/Image.lz4
-            **/arch/arm64/boot/Image.lz4
-            **/out/arch/arm64/boot/Image
-            **/arch/arm64/boot/Image
-        if: always()
+          # 7. Compilar Kernel e imágenes de módulos
+          make -j$(nproc) O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image modules
