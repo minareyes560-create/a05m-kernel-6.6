@@ -29,8 +29,19 @@ jobs:
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Entrar al directorio del kernel
-          cd kernel-6.6 || cd kernel || cd .
+          # Ubicar correctamente la carpeta del kernel evitando rutas anidadas incorrectas
+          if [ -d "kernel-6.6/kernel-6.6" ]; then
+            cd kernel-6.6/kernel-6.6
+          elif [ -d "kernel-6.6" ]; then
+            cd kernel-6.6
+          elif [ -d "kernel" ]; then
+            cd kernel
+          else
+            cd .
+          fi
+          
+          echo "Directorio actual de trabajo: $(pwd)"
+          ls -la
           
           # Limpiar referencias de KernelSU y archivos residuales
           sed -i '/kernelsu/d' drivers/Makefile || true
@@ -64,7 +75,7 @@ jobs:
           # Actualizar la configuración con los nuevos drivers añadidos
           make O=out olddefconfig
           
-          # Compilar la imagen del kernel usando el directorio out para evitar conflictos en el Makefile
+          # Compilar la imagen del kernel usando el directorio out
           make -j$(nproc) O=out Image.lz4 Image
 
       - name: Subir Kernel listo
