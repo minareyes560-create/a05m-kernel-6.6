@@ -29,7 +29,7 @@ jobs:
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # Ubicar correctamente la carpeta del kernel evitando rutas anidadas incorrectas
+          # Ubicar correctamente la carpeta del kernel
           if [ -d "kernel-6.6/kernel-6.6" ]; then
             cd kernel-6.6/kernel-6.6
           elif [ -d "kernel-6.6" ]; then
@@ -41,7 +41,6 @@ jobs:
           fi
           
           echo "Directorio actual de trabajo: $(pwd)"
-          ls -la
           
           # Limpiar referencias de KernelSU y archivos residuales
           sed -i '/kernelsu/d' drivers/Makefile || true
@@ -49,18 +48,9 @@ jobs:
           rm -rf drivers/kernelsu || true
           make mrproper
           
-          # Definir variables de compilación cruzada estándar para Clang/LLVM
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export CC=clang
-          export LD=ld.lld
-          export LLVM=1
-          export LLVM_IAS=1
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-
-          # Configuración base GKI para ARM64 usando un directorio de salida limpio 'out'
+          # Crear directorio out y generar configuración base pasando las variables directamente
           mkdir -p out
-          make O=out gki_defconfig
+          make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- gki_defconfig
           
           # Inyectar soporte para Wi-Fi y los drivers mt76 / mt7921u de la antena en el .config generado
           {
@@ -73,10 +63,10 @@ jobs:
           } >> out/.config
           
           # Actualizar la configuración con los nuevos drivers añadidos
-          make O=out olddefconfig
+          make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
           
-          # Compilar la imagen del kernel usando el directorio out
-          make -j$(nproc) O=out Image.lz4 Image
+          # Compilar pasando todas las variables de arquitectura y toolchain directamente al make
+          make -j$(nproc) O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
