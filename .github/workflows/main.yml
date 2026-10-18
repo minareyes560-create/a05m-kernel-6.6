@@ -38,10 +38,20 @@ jobs:
           rm -rf drivers/kernelsu || true
           make mrproper
           
-          # Configuración base GKI para ARM64
-          make ARCH=arm64 gki_defconfig
+          # Definir variables de compilación cruzada estándar para Clang/LLVM
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CC=clang
+          export LD=ld.lld
+          export LLVM=1
+          export LLVM_IAS=1
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+
+          # Configuración base GKI para ARM64 usando un directorio de salida limpio 'out'
+          mkdir -p out
+          make O=out gki_defconfig
           
-          # Inyectar soporte para Wi-Fi y los drivers mt76 / mt7921u de la antena
+          # Inyectar soporte para Wi-Fi y los drivers mt76 / mt7921u de la antena en el .config generado
           {
             echo "CONFIG_NL80211_TESTMODE=y"
             echo "CONFIG_CFG80211=m"
@@ -49,12 +59,13 @@ jobs:
             echo "CONFIG_MT76_CORE=m"
             echo "CONFIG_MT76_USB=m"
             echo "CONFIG_MT7921U=m"
-          } >> arch/arm64/configs/gki_defconfig
+          } >> out/.config
           
-          make ARCH=arm64 gki_defconfig
+          # Actualizar la configuración con los nuevos drivers añadidos
+          make O=out olddefconfig
           
-          # Compilar la imagen del kernel directamente evitando conflictos de sub-make en headers
-          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image.lz4 Image
+          # Compilar la imagen del kernel usando el directorio out para evitar conflictos en el Makefile
+          make -j$(nproc) O=out Image.lz4 Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
