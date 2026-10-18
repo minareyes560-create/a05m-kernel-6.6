@@ -24,46 +24,37 @@ jobs:
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
-      - name: Configurar Kernel y Compilar Modo Monitor
+      - name: Configurar drivers Panda AXE3000 (mt76) y Compilar Kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
           echo "Usando binarios desde: $HOME/clang/bin"
           
-          # 1. Ubicar correctamente la carpeta del kernel
-          if [ -d "kernel-6.6/kernel-6.6" ]; then
-            cd kernel-6.6/kernel-6.6
-          elif [ -d "kernel-6.6" ]; then
-            cd kernel-6.6
-          elif [ -d "kernel" ]; then
-            cd kernel
-          else
-            cd .
-          fi
+          # Entrar al directorio del kernel
+          cd kernel-6.6 || cd kernel || cd .
           
-          echo "Directorio actual de trabajo: $(pwd)"
-          
-          # 2. Limpiar referencias y archivos residuales
+          # Limpiar referencias de KernelSU y archivos residuales
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
           rm -rf drivers/kernelsu || true
           make mrproper
           
-          # 3. Crear directorio out y generar configuración base GKI
-          mkdir -p out
-          make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- gki_defconfig
+          # Configuración base GKI para ARM64
+          make ARCH=arm64 gki_defconfig
           
-          # 4. Inyectar soporte nativo de red y modo monitor en el kernel
+          # Inyectar soporte para Wi-Fi y los drivers mt76 / mt7921u de la antena
           {
-            echo "CONFIG_NETDEVICES=y"
-            echo "CONFIG_WLAN=y"
+            echo "CONFIG_NL80211_TESTMODE=y"
             echo "CONFIG_CFG80211=m"
             echo "CONFIG_MAC80211=m"
-            echo "CONFIG_NL80211_TESTMODE=y"
-          } >> out/.config
+            echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT7921U=m"
+          } >> arch/arm64/configs/gki_defconfig
           
-          # 5. Actualizar configuración y compilar la imagen limpia del kernel
-          make O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
-          make -j$(nproc) O=out ARCH=arm64 SUBARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
+          make ARCH=arm64 gki_defconfig
+          
+          # Compilar la imagen del kernel directamente evitando conflictos de sub-make en headers
+          make -j$(nproc) ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image.lz4 Image
 
       - name: Subir Kernel listo
         uses: actions/upload-artifact@v4
