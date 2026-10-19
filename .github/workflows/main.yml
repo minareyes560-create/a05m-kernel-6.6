@@ -15,12 +15,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
-      - name: Descargar Firmware MT76 e Inyectar Configuración
+      - name: Preparar Firmware MT76 e Inyectar Configuración
         run: |
-          # Descargar e instalar los firmwares binarios actualizados de MediaTek directamente en la ruta del sistema del runner
-          sudo mkdir -p /lib/firmware/mediatek
-          sudo wget -q -O /lib/firmware/mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin"
-          sudo wget -q -O /lib/firmware/mediatek/WIFI_RAM_CODE_MT7961_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7961_1.bin"
+          # Crear la estructura de firmware localmente en el workspace
+          mkdir -p firmware_storage/mediatek
+          wget -q -O firmware_storage/mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin"
+          wget -q -O firmware_storage/mediatek/WIFI_RAM_CODE_MT7961_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7961_1.bin"
           
           # Limpieza preventiva en la raíz
           if [ -f "drivers/Makefile" ]; then
@@ -71,7 +71,7 @@ jobs:
             echo "CONFIG_MT7921_COMMON=y"
             echo "CONFIG_MT7921U=y"
             echo "CONFIG_EXTRA_FIRMWARE=\"mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin mediatek/WIFI_RAM_CODE_MT7961_1.bin\""
-            echo "CONFIG_EXTRA_FIRMWARE_DIR=\"/lib/firmware\""
+            echo "CONFIG_EXTRA_FIRMWARE_DIR=\"firmware_storage\""
           } >> out/.config
           
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
