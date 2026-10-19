@@ -17,16 +17,10 @@ jobs:
 
       - name: Configurar e Inyectar Drivers MT76 / Panda AXE3000 (MT7921U)
         run: |
-          # Detectar automáticamente la carpeta del kernel o permanecer en la raíz
-          if [ -d "kernel-6.6" ]; then
-            cd kernel-6.6
-          elif [ -d "kernel" ]; then
-            cd kernel
-          else
-            cd .
-          fi
+          # Posicionarse directamente dentro de la carpeta del kernel
+          cd kernel-6.6 || cd kernel || true
           
-          # Limpieza preventiva solo si existen los archivos/carpetas
+          # Limpieza preventiva
           if [ -f "drivers/Makefile" ]; then
             sed -i '/kernelsu/d' drivers/Makefile || true
             sed -i '/kernelsu/d' drivers/Kconfig || true
@@ -36,7 +30,7 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Selección automática del defconfig de Samsung / MediaTek A05
+          # Selección automática del defconfig
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -50,7 +44,7 @@ jobs:
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
-          # Inyección de MT76, mac80211, cfg80211 y soporte de firmware binario integrados
+          # Inyección de MT76, mac80211, cfg80211 y soporte de firmware binario
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -73,26 +67,19 @@ jobs:
             echo "CONFIG_EXTRA_FIRMWARE_DIR=\"/lib/firmware\""
           } >> out/.config
           
-          # Consolidación de parámetros
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
       - name: Compilar Imagen del Kernel
         run: |
-          if [ -d "kernel-6.6" ]; then
-            cd kernel-6.6
-          elif [ -d "kernel" ]; then
-            cd kernel
-          else
-            cd .
-          fi
-          
+          cd kernel-6.6 || cd kernel || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
+          # Buscar la imagen dentro del directorio del kernel o la raíz
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
