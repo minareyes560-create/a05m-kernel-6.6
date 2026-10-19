@@ -10,26 +10,13 @@ jobs:
       - name: Clonar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar dependencias
+      - name: Configurar dependencias y Clang oficial
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3
-
-      - name: Descargar Toolchain Clang
-        run: |
-          mkdir -p $HOME/clang
-          cd $HOME/clang
-          wget https://github.com/LineageOS/android_prebuilts_clang_host_linux-x86_clang-r416183b/archive/refs/heads/lineage-20.zip -O clang.zip
-          unzip -q clang.zip
-          mv android_prebuilts_clang_host_linux-x86_clang-r416183b-lineage-20 bin-temp
-          mv bin-temp/* .
-          rm -rf bin-temp clang.zip
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang
 
       - name: Configurar drivers Panda AXE3000 y Compilar Kernel
         run: |
-          export PATH="$HOME/clang/bin:$PATH"
-          echo "Usando binarios desde: $HOME/clang/bin"
-          
           # Entrar al directorio del kernel
           cd kernel-6.6 || cd kernel || cd .
           
