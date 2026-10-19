@@ -1,4 +1,4 @@
-name: Compilar Kernel A05 Modo Monitor
+name: Compilar Kernel Samsung A05 - Modo Monitor
 
 on:
   workflow_dispatch:
@@ -7,69 +7,101 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Clonar repositorio
+      - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Configurar dependencias y Clang oficial
+      - name: Instalación de dependencias y Clang/LLVM
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang
 
-      - name: Configurar drivers Panda AXE3000 y Compilar Kernel
+      - name: Configurar e Inyectar Drivers Panda AXE3000 (MT7921U)
         run: |
-          # Entrar al directorio del kernel
-          cd kernel-6.6 || cd kernel || cd .
+          # Entrar al directorio raíz del kernel si existe carpeta anidada
+          [ -d "kernel-6.6" ] && cd kernel-6.6
+          [ -d "kernel" ] && cd kernel
           
-          # Limpiar referencias de KernelSU y residuos de compilaciones anteriores
+          # Limpiar residuos de KernelSU para evitar conflictos de compilación
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
           rm -rf drivers/kernelsu || true
           make mrproper
           
-          # Generar la configuración base en la carpeta out
           mkdir -p out
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
           
-          # Desactivar AFDO e inyectar drivers completos mt76 y de la antena Panda AXE3000 (MT7921U)
+          # Cargar la configuración base oficial de Samsung / MediaTek A05
+          if [ -f "arch/arm64/configs/a05_defconfig" ]; then
+            DEFCONFIG="a05_defconfig"
+          elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
+            DEFCONFIG="vendor/a05_defconfig"
+          elif [ -f "arch/arm64/configs/mt6768_defconfig" ]; then
+            DEFCONFIG="mt6768_defconfig"
+          else
+            DEFCONFIG="gki_defconfig"
+          fi
+          
+          echo "Usando defconfig: $DEFCONFIG"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+          
+          # Inyectar drivers de la antena Panda AXE3000 directamente integrados (=y)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
             echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
             echo "CONFIG_NET=y"
             echo "CONFIG_WIRELESS=y"
-            echo "CONFIG_CFG80211=m"
-            echo "CONFIG_MAC80211=m"
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_MAC80211=y"
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_MT76_CORE=m"
-            echo "CONFIG_MT76_USB=m"
-            echo "CONFIG_MT76_CONNAC_LIB=m"
-            echo "CONFIG_MT7921_COMMON=m"
-            echo "CONFIG_MT7921U=m"
+            echo "CONFIG_MT76_CORE=y"
+            echo "CONFIG_MT76_USB=y"
+            echo "CONFIG_MT76_CONNAC_LIB=y"
+            echo "CONFIG_MT7921_COMMON=y"
+            echo "CONFIG_MT7921U=y"
           } >> out/.config
           
-          # Consolidar configuración y preparar dependencias internas
+          # Consolidar y estructurar la configuración
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
-          
-          # Compilar la imagen del Kernel e Módulos
-          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
-          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
 
-      - name: Organizar Artefactos para Descargar
+      - name: Compilar Imagen del Kernel
         run: |
-          mkdir -p output_files/modules
+          [ -d "kernel-6.6" ] && cd kernel-6.6
+          [ -d "kernel" ] && cd kernel
           
-          # Buscar y copiar la imagen compilada del kernel de forma flexible
-          find . -name "Image" -exec cp {} output_files/ \;
-          
-          # Buscar y copiar todos los módulos compilados (.ko) incluyendo los mt76
-          find . -name "*.ko" -exec cp {} output_files/modules/ \;
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
-      - name: Subir Kernel y Módulos (.ko)
+      - name: Empaquetar con AnyKernel3 para TWRP
+        run: |
+          # Clonar plantilla limpia de AnyKernel3
+          git clone https://github.com/osm0sis/AnyKernel3.git AK3
+          
+          # Localizar la imagen del Kernel compilada
+          IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
+          
+          if [ -z "$IMAGE_PATH" ]; then
+            echo "Error: No se encontró la imagen compilada."
+            exit 1
+          fi
+          
+          cp "$IMAGE_PATH" AK3/
+          
+          # Configurar parámetros de AnyKernel3 para Samsung Galaxy A05
+          cd AK3
+          sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
+          sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
+          sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
+          sed -i 's/block=\/dev\/block\/.*/block=\/dev\/block\/by-name\/boot;/g' anykernel.sh
+          
+          # Generar archivo ZIP flasheable
+          zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
+
+      - name: Subir ZIP Flasheable como Artefacto
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: Kernel-A05-Panda-MonitorMode
-          path: output_files/
+          name: Kernel-A05-Panda-MonitorMode-TWRP
+          path: Kernel-A05-Panda-MonitorMode.zip
