@@ -17,11 +17,8 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          if [ -f "drivers/Makefile" ]; then
-            sed -i '/kernelsu/d' drivers/Makefile || true
-            sed -i '/kernelsu/d' drivers/Kconfig || true
-            rm -rf drivers/kernelsu || true
-          fi
+          # Entrar a la carpeta interna del kernel donde está el Makefile real
+          cd android_kernel_samsung_a05 || cd kernel-6.6 || cd kernel || true
           
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
@@ -68,6 +65,7 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
+          cd android_kernel_samsung_a05 || cd kernel-6.6 || cd kernel || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
