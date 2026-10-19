@@ -10,7 +10,7 @@ jobs:
       - name: Clonar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar dependencias de compilación
+      - name: Configurar dependencias
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3
@@ -19,7 +19,8 @@ jobs:
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
+          wget https://raw.githubusercontent.com/ZyCronite/Clang/main/clang.tar.gz -O clang.tar.gz || \
+          wget https://github.com/ZyCronite/Clang/releases/download/14.0.6/Clang-14.0.6.tar.gz -O clang.tar.gz
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
@@ -31,17 +32,17 @@ jobs:
           # Entrar al directorio del kernel
           cd kernel-6.6 || cd kernel || cd .
           
-          # Limpiar residuos de compilaciones anteriores
+          # Limpiar referencias de KernelSU y residuos de compilaciones anteriores
           sed -i '/kernelsu/d' drivers/Makefile || true
           sed -i '/kernelsu/d' drivers/Kconfig || true
           rm -rf drivers/kernelsu || true
           make mrproper
           
-          # Generar la configuración base GKI
+          # Generar la configuración base en la carpeta out
           mkdir -p out
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
           
-          # Desactivar AFDO e inyectar drivers de la antena Panda AXE3000 (MediaTek MT7921U)
+          # Desactivar AFDO e inyectar drivers completos mt76 y de la antena Panda AXE3000 (MT7921U)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -53,6 +54,7 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
+            # Dependencias completas del ecosistema mt76 y USB para la antena
             echo "CONFIG_MT76_CORE=m"
             echo "CONFIG_MT76_USB=m"
             echo "CONFIG_MT76_CONNAC_LIB=m"
@@ -60,11 +62,11 @@ jobs:
             echo "CONFIG_MT7921U=m"
           } >> out/.config
           
-          # Consolidar configuración y preparar archivos del kernel
+          # Consolidar configuración y preparar dependencias internas
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
           
-          # Compilar Kernel e Módulos
+          # Compilar la imagen del Kernel e Módulos
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
 
@@ -75,7 +77,7 @@ jobs:
           # Buscar y copiar la imagen compilada del kernel de forma flexible
           find . -name "Image" -exec cp {} output_files/ \;
           
-          # Buscar y copiar todos los módulos compilados (.ko)
+          # Buscar y copiar todos los módulos compilados (.ko) incluyendo los mt76
           find . -name "*.ko" -exec cp {} output_files/modules/ \;
 
       - name: Subir Kernel y Módulos (.ko)
