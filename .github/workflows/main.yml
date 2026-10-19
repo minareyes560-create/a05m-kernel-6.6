@@ -17,15 +17,23 @@ jobs:
 
       - name: Configurar e Inyectar Drivers MT76 / Panda AXE3000 (MT7921U)
         run: |
-          [ -d "kernel-6.6" ] && cd kernel-6.6
-          [ -d "kernel" ] && cd kernel
+          # Detectar automáticamente la carpeta del kernel o permanecer en la raíz
+          if [ -d "kernel-6.6" ]; then
+            cd kernel-6.6
+          elif [ -d "kernel" ]; then
+            cd kernel
+          else
+            cd .
+          fi
           
-          # Limpieza preventiva
-          sed -i '/kernelsu/d' drivers/Makefile || true
-          sed -i '/kernelsu/d' drivers/Kconfig || true
-          rm -rf drivers/kernelsu || true
-          make mrproper
+          # Limpieza preventiva solo si existen los archivos/carpetas
+          if [ -f "drivers/Makefile" ]; then
+            sed -i '/kernelsu/d' drivers/Makefile || true
+            sed -i '/kernelsu/d' drivers/Kconfig || true
+            rm -rf drivers/kernelsu || true
+          fi
           
+          make mrproper || true
           mkdir -p out
           
           # Selección automática del defconfig de Samsung / MediaTek A05
@@ -71,8 +79,13 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          [ -d "kernel-6.6" ] && cd kernel-6.6
-          [ -d "kernel" ] && cd kernel
+          if [ -d "kernel-6.6" ]; then
+            cd kernel-6.6
+          elif [ -d "kernel" ]; then
+            cd kernel
+          else
+            cd .
+          fi
           
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
