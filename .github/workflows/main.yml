@@ -19,7 +19,6 @@ jobs:
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main.tar.gz -O clang.tar.gz || \
           wget https://gitlab.com/LeLithium/clang-standalone/-/raw/main/clang-r416183b.tar.gz -O clang.tar.gz
           tar -xzf clang.tar.gz
           rm clang.tar.gz
@@ -81,7 +80,7 @@ jobs:
 
       - name: Subir Kernel y Módulos (.ko)
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Kernel-A05-Panda-MonitorMode
           path: output_files/
-        if: always()
