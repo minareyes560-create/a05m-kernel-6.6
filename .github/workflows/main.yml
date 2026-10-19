@@ -19,10 +19,11 @@ jobs:
         run: |
           mkdir -p $HOME/clang
           cd $HOME/clang
-          wget https://raw.githubusercontent.com/ZyCronite/Clang/main/clang.tar.gz -O clang.tar.gz || \
-          wget https://github.com/ZyCronite/Clang/releases/download/14.0.6/Clang-14.0.6.tar.gz -O clang.tar.gz
-          tar -xzf clang.tar.gz
-          rm clang.tar.gz
+          wget https://github.com/LineageOS/android_prebuilts_clang_host_linux-x86_clang-r416183b/archive/refs/heads/lineage-20.zip -O clang.zip
+          unzip -q clang.zip
+          mv android_prebuilts_clang_host_linux-x86_clang-r416183b-lineage-20 bin-temp
+          mv bin-temp/* .
+          rm -rf bin-temp clang.zip
 
       - name: Configurar drivers Panda AXE3000 y Compilar Kernel
         run: |
@@ -54,7 +55,6 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
-            # Dependencias completas del ecosistema mt76 y USB para la antena
             echo "CONFIG_MT76_CORE=m"
             echo "CONFIG_MT76_USB=m"
             echo "CONFIG_MT76_CONNAC_LIB=m"
