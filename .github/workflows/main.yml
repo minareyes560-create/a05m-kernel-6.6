@@ -73,11 +73,11 @@ jobs:
         run: |
           mkdir -p output_files/modules
           
-          # Copiar la imagen compilada del kernel
-          find out/arch/arm64/boot/ -name "Image" -exec cp {} output_files/ \;
+          # Buscar y copiar la imagen compilada del kernel de forma flexible
+          find . -name "Image" -exec cp {} output_files/ \;
           
-          # Copiar todos los módulos inalámbricos compilados (.ko)
-          find out/drivers/net/wireless/ -name "*.ko" -exec cp {} output_files/modules/ \;
+          # Buscar y copiar todos los módulos compilados (.ko)
+          find . -name "*.ko" -exec cp {} output_files/modules/ \;
 
       - name: Subir Kernel y Módulos (.ko)
         uses: actions/upload-artifact@v4
