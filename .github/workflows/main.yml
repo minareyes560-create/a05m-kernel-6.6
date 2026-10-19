@@ -10,10 +10,10 @@ jobs:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Instalación de dependencias, Clang y Firmware MediaTek
+      - name: Instalación de dependencias y Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang firmware-mediatek linux-firmware
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
       - name: Configurar e Inyectar Drivers MT76 / Panda AXE3000 (MT7921U)
         run: |
