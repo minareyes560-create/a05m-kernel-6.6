@@ -15,30 +15,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
-      - name: Descargar Firmware MT76 (MediaTek MT7921U) e Inyectar Configuración
+      - name: Descargar Firmware MT76 e Inyectar Configuración
         run: |
-          cd kernel-6.6 || cd kernel || true
-          
-          # 1. Descargar e instalar los firmwares binarios actualizados de MediaTek
+          # Descargar e instalar los firmwares binarios actualizados de MediaTek directamente en la ruta del sistema del runner
           sudo mkdir -p /lib/firmware/mediatek
           sudo wget -q -O /lib/firmware/mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7961_patch_mcu_1_1_hdr.bin"
           sudo wget -q -O /lib/firmware/mediatek/WIFI_RAM_CODE_MT7961_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7961_1.bin"
           
-          # 2. Limpieza preventiva
+          # Limpieza preventiva en la raíz
           if [ -f "drivers/Makefile" ]; then
             sed -i '/kernelsu/d' drivers/Makefile || true
             sed -i '/kernelsu/d' drivers/Kconfig || true
             rm -rf drivers/kernelsu || true
           fi
           
-          # 3. Anulación total de AFDO / AutoFDO para evitar errores en Makefiles (Línea 1971)
+          # Anulación total de AFDO / AutoFDO para evitar errores en Makefiles
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           
           make mrproper || true
           mkdir -p out
           
-          # 4. Selección automática del defconfig oficial
+          # Selección automática del defconfig oficial
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -52,7 +50,7 @@ jobs:
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
-          # 5. Inyección de Drivers MT76 + Desactivación de AFDO
+          # Inyección de Drivers MT76 + Desactivación de AFDO
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -81,7 +79,6 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          cd kernel-6.6 || cd kernel || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
