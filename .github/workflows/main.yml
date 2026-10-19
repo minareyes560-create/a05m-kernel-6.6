@@ -17,21 +17,27 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entrar a la carpeta interna del kernel donde está el Makefile real
-          cd android_kernel_samsung_a05 || cd kernel-6.6 || cd kernel || true
+          # Entrar a la carpeta interna del kernel correcta
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           
+          # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
+          rm -rf drivers/kernelsu || true
+          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
+          
+          # Anulación de AFDO
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           
           make mrproper || true
           mkdir -p out
           
+          # Forzar el defconfig correcto del A05 si existe, o buscar el de vendor
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
             DEFCONFIG="vendor/a05_defconfig"
-          elif [ -f "arch/arm64/configs/mt6768_defconfig" ]; then
-            DEFCONFIG="mt6768_defconfig"
+          elif [ -f "arch/arm64/configs/exynos*defconfig" ] || [ -f "arch/arm64/configs/mt*" ]; then
+            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
           else
             DEFCONFIG="gki_defconfig"
           fi
@@ -65,7 +71,7 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          cd android_kernel_samsung_a05 || cd kernel-6.6 || cd kernel || true
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
