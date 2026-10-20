@@ -17,7 +17,7 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # 1. Buscar directamente el defconfig en todo el repositorio clonado de forma dinámica
+          # 1. Buscar directamente el defconfig en todo el repositorio clonado
           CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
           
           if [ -z "$CONFIG_PATH" ]; then
@@ -25,17 +25,20 @@ jobs:
           fi
           
           if [ -n "$CONFIG_PATH" ]; then
-            # Extraer el nombre base del defconfig y calcular la ruta interna del kernel de forma segura
             DEFCONFIG=$(basename "$CONFIG_PATH")
-            # Subir desde arch/arm64/configs hasta la raíz del código fuente del kernel
-            KERNEL_DIR=$(dirname $(dirname $(dirname $(dirname "$CONFIG_PATH"))))
+            # Subir dinámicamente hasta encontrar la carpeta del kernel que contiene el Makefile principal
+            CURRENT_DIR=$(dirname "$CONFIG_PATH")
+            while [ ! -f "$CURRENT_DIR/Makefile" ] && [ "$CURRENT_DIR" != "." ] && [ "$CURRENT_DIR" != "/" ]; do
+              CURRENT_DIR=$(dirname "$CURRENT_DIR")
+            done
+            KERNEL_DIR="$CURRENT_DIR"
           else
             echo "Error crítico: No se encontró el defconfig de Samsung/MediaTek."
             exit 1
           fi
           
           echo "=========================================="
-          echo "Carpeta del Kernel detectada: $KERNEL_DIR"
+          echo "Carpeta raíz del Kernel detectada: $KERNEL_DIR"
           echo "Defconfig detectado: $DEFCONFIG"
           echo "=========================================="
           
@@ -45,7 +48,7 @@ jobs:
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          # Anulación de AFDO de forma segura solo si los archivos existen
+          # Anulación de AFDO
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           
