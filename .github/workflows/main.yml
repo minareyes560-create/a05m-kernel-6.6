@@ -17,7 +17,7 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # 1. Buscar directamente el defconfig en todo el repositorio clonado
+          # 1. Buscar la carpeta raíz real buscando directamente el Makefile del kernel junto a la estructura de arquitectura
           CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
           
           if [ -z "$CONFIG_PATH" ]; then
@@ -26,23 +26,37 @@ jobs:
           
           if [ -n "$CONFIG_PATH" ]; then
             DEFCONFIG=$(basename "$CONFIG_PATH")
-            # Subir dinámicamente hasta encontrar la carpeta del kernel que contiene el Makefile principal
+            # Encontrar el directorio raíz del kernel buscando hacia arriba desde el defconfig el Makefile principal que contenga la versión o el archivo MAINTAINERS
             CURRENT_DIR=$(dirname "$CONFIG_PATH")
-            while [ ! -f "$CURRENT_DIR/Makefile" ] && [ "$CURRENT_DIR" != "." ] && [ "$CURRENT_DIR" != "/" ]; do
+            while [ ! -f "$CURRENT_DIR/MAINTAINERS" ] && [ ! -f "$CURRENT_DIR/drivers" ] && [ "$CURRENT_DIR" != "." ] && [ "$CURRENT_DIR" != "/" ]; do
               CURRENT_DIR=$(dirname "$CURRENT_DIR")
             done
-            KERNEL_DIR="$CURRENT_DIR"
+            # Si aún está en una ruta muy interna, buscar el Makefile raíz de Android/MediaTek
+            if [ ! -f "$CURRENT_DIR/Makefile" ]; then
+              KERNEL_DIR=$(find . -name "Makefile" -exec grep -l "VERSION = 6" {} \; | head -n 1 | xargs dirname)
+            else
+              KERNEL_DIR="$CURRENT_DIR"
+            fi
           else
-            echo "Error crítico: No se encontró el defconfig de Samsung/MediaTek."
+            echo "Error crítico: No se encontró el defconfig."
             exit 1
           fi
           
+          # Respaldo por si la detección automática requiere un anclaje directo al Makefile principal del repositorio clonado
+          if [ ! -f "$KERNEL_DIR/Makefile" ]; then
+            KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" -exec grep -l "SUBARCH" {} \; | head -n 1 | xargs dirname)
+          fi
+          
+          if [ -z "$KERNEL_DIR" ] || [ ! -f "$KERNEL_DIR/Makefile" ]; then
+            KERNEL_DIR="."
+          fi
+          
           echo "=========================================="
-          echo "Carpeta raíz del Kernel detectada: $KERNEL_DIR"
+          echo "Carpeta raíz asegurada: $KERNEL_DIR"
           echo "Defconfig detectado: $DEFCONFIG"
           echo "=========================================="
-          
-          cd "$KERNEL_DIR" || true
+
+          cd "$KERNEL_DIR"
 
           # LIMPIEZA RADICAL DE KERNELSU
           rm -rf drivers/kernelsu || true
@@ -83,7 +97,7 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          # Entrar de forma dinámica a la carpeta del kernel donde se configuró 'out'
+          # Entrar de forma dinámica a la carpeta donde se configuró 'out'
           cd $(find . -type d -name "out" | head -n 1 | sed 's|/out||') || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
