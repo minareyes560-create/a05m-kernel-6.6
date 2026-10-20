@@ -6,13 +6,13 @@
 properties() { '
 kernel.string=Samsung A05 Custom Kernel 6.6 (Theman-Fromfar)
 do.devicecheck=0
-do.modules=0
+do.modules=1
 do.systemless=0
 do.cleanup=1
 do.cleanuponabort=0
-device.name1=
-device.name2=
-device.name3=
+device.name1=a05
+device.name2=a05m
+device.name3=SM-A055M
 device.name4=
 device.name5=
 supported.versions=
@@ -23,25 +23,16 @@ supported.vendorpatchlevels=
 
 ### AnyKernel install
 ## boot shell variables
-block=boot
-is_slot_device=auto
-ramdisk_compression=auto
-patch_vbmeta_flag=auto
+block=/dev/block/by-name/boot;
+is_slot_device=0;
+ramdisk_compression=auto;
+patch_vbmeta_flag=auto;
 no_magisk_check=1
 
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh
 
-kernel_version=$(cat /proc/version | awk -F '-' '{print $1}' | awk '{print $3}')
-case $kernel_version in
-    5.1*) ksu_supported=true ;;
-    6.1*) ksu_supported=true ;;
-    6.6*) ksu_supported=true ;;
-    *) ksu_supported=false ;;
-esac
-
-ui_print " " "  -> Flashing custom kernel"
-$ksu_supported || abort "  -> Device not supported, abort."
+ui_print " " "  -> Flashing custom kernel for Samsung A05"
 
 # boot install
 split_boot
