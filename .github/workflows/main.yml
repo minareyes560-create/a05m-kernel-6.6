@@ -17,9 +17,27 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entrar a la carpeta interna del kernel correcta
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          # 1. Buscar la ruta real donde están los defconfig dentro del repositorio
+          CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
           
+          if [ -n "$CONFIG_PATH" ]; then
+            # Extraer solo el nombre relativo dentro de arch/arm64/configs/
+            DEFCONFIG=$(echo "$CONFIG_PATH" | sed 's|.*/arch/arm64/configs/||')
+          else
+            # Si no lo halla por nombre corto, buscar cualquier defconfig de vendor/mediatek
+            CONFIG_PATH=$(find arch/arm64/configs/ -type f -name "*defconfig" | grep -E "vendor|mt" | head -n 1)
+            DEFCONFIG=$(echo "$CONFIG_PATH" | sed 's|.*/arch/arm64/configs/||')
+          fi
+          
+          echo "=========================================="
+          echo "Defconfig detectado: $DEFCONFIG"
+          echo "=========================================="
+          
+          if [ -z "$DEFCONFIG" ]; then
+            echo "Error crítico: No se encontró el defconfig de Samsung/MediaTek."
+            exit 1
+          fi
+
           # LIMPIEZA RADICAL DE KERNELSU
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
@@ -31,21 +49,8 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Buscar el defconfig nativo del A05
-          if [ -f "arch/arm64/configs/a05_defconfig" ]; then
-            DEFCONFIG="a05_defconfig"
-          elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
-            DEFCONFIG="vendor/a05_defconfig"
-          elif [ -f "arch/arm64/configs/exynos*defconfig" ] || [ -f "arch/arm64/configs/mt*" ]; then
-            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
-          else
-            DEFCONFIG="gki_defconfig"
-          fi
-          
-          echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
-          # Inyectar opciones de red de forma segura (como módulos o habilitadas)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
