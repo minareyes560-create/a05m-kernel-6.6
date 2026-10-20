@@ -17,15 +17,25 @@ jobs:
 
       - name: Inyectar Configuración y Compilar
         run: |
-          # 1. Localizar el defconfig en cualquier parte del repo desde la raíz
           cd "$GITHUB_WORKSPACE"
-          CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
-          if [ -z "$CONFIG_PATH" ]; then
-            CONFIG_PATH=$(find . -type f -name "*defconfig" | grep -E "vendor|mt" | head -n 1)
-          fi
 
-          # 2. Encontrar el directorio que contiene el Makefile principal del kernel
-          KERNEL_SUBDIR=$(find . -name "Makefile" -exec grep -l "VERSION =" {} \; | head -n 1 | xargs dirname)
+          # 1. Localizar cualquier defconfig disponible en el repositorio de forma inteligente
+          CONFIG_PATH=$(find . -type f -name "*defconfig" | grep -E "a05|mt|gki" | head -n 1)
+          if [ -z "$CONFIG_PATH" ]; then
+            CONFIG_PATH=$(find . -type f -name "*defconfig" | head -n 1)
+          fi
+          CONFIG_NAME=$(basename "$CONFIG_PATH")
+          echo "Defconfig detectado: $CONFIG_NAME en $CONFIG_PATH"
+
+          # 2. Encontrar la raíz real del kernel (la carpeta que contiene 'arch')
+          KERNEL_SUBDIR=""
+          for d in $(find . -name "Makefile" -exec dirname {} \;); do
+            if [ -d "$d/arch" ] && [ -f "$d/Makefile" ]; then
+              KERNEL_SUBDIR="$d"
+              break
+            fi
+          done
+
           if [ -z "$KERNEL_SUBDIR" ]; then
             KERNEL_SUBDIR="."
           fi
@@ -33,9 +43,9 @@ jobs:
           echo "Directorio base del kernel: $GITHUB_WORKSPACE/$KERNEL_SUBDIR"
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # 3. Copiar el defconfig a la ruta esperada dentro del directorio del kernel
+          # 3. Copiar el archivo de configuración a la ruta de arquitecturas ARM64
           mkdir -p arch/arm64/configs
-          cp "$GITHUB_WORKSPACE/$CONFIG_PATH" arch/arm64/configs/a05m_defconfig
+          cp "$GITHUB_WORKSPACE/$CONFIG_PATH" arch/arm64/configs/$CONFIG_NAME
 
           # 4. Limpieza y desactivación de opciones problemáticas
           rm -rf drivers/kernelsu || true
@@ -46,8 +56,8 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # 5. Generar configuración base
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
+          # 5. Generar configuración base usando el defconfig detectado
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $CONFIG_NAME
 
           # 6. Inyectar módulos de red y mt76/mt7921u para modo monitor
           {
