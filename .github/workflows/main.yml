@@ -31,13 +31,18 @@ jobs:
             exit 1
           fi
 
-          # 2. Ir directamente a la carpeta raíz del kernel subiendo desde la ruta del defconfig de manera exacta
-          # El defconfig siempre está en arch/arm64/configs/..., así que subimos 4 niveles exactos para llegar al source
-          KERNEL_DIR=$(dirname $(dirname $(dirname $(dirname "$CONFIG_PATH"))))
-          
-          if [ ! -f "$KERNEL_DIR/Makefile" ]; then
-            # Si por algo no está ahí, buscamos la carpeta que contenga el archivo MAINTAINERS o un Makefile válido
-            KERNEL_DIR=$(find . -name "MAINTAINERS" -exec dirname {} \; | head -n 1)
+          # 2. Buscar la carpeta raíz real buscando el Makefile que contenga la variable VERSION (evitando subcarpetas de herramientas o módulos)
+          KERNEL_DIR=""
+          for m in $(find . -name "Makefile"); do
+            if grep -q "VERSION =" "$m"; then
+              KERNEL_DIR=$(dirname "$m")
+              break
+            fi
+          done
+
+          # Si no lo encuentra por VERSION, usar el directorio base de la arquitectura del defconfig subiendo de forma segura
+          if [ -z "$KERNEL_DIR" ] || [ ! -f "$KERNEL_DIR/Makefile" ]; then
+            KERNEL_DIR=$(dirname $(dirname $(dirname $(dirname "$CONFIG_PATH"))))
           fi
 
           echo "=========================================="
