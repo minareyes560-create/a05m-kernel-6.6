@@ -28,13 +28,7 @@ jobs:
           echo "Directorio base del kernel fijo: $GITHUB_WORKSPACE/$KERNEL_SUBDIR"
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # 2. Inyectar el código fuente de los drivers mt76 para el adaptador Panda (MediaTek mt7921u)
-          echo "Clonando drivers mt76 para soporte nativo de Modo Monitor..."
-          mkdir -p drivers/net/wireless/mediatek
-          git clone https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git firmware_tmp || true
-          git clone https://github.com/openwrt/mt76.git drivers/net/wireless/mediatek/mt76 || true
-
-          # 3. Limpieza y preparación
+          # 2. Limpieza y preparación de fuentes
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
@@ -43,13 +37,14 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # 4. Copiar el a05m_defconfig y agregarlo al build
+          # 3. Copiar el a05m_defconfig nativo al directorio de configuraciones
           mkdir -p arch/arm64/configs
           cp "$GITHUB_WORKSPACE/kernel/kernel_device_modules-6.6/arch/arm64/configs/a05m_defconfig" arch/arm64/configs/a05m_defconfig
 
+          # 4. Generar la configuración limpia
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 5. Inyectar opciones de red y los drivers mt76/mt7921u en el .config
+          # 5. Inyectar opciones de red y soporte inalámbrico base de forma segura
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -64,17 +59,12 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_MT76_CORE=m"
-            echo "CONFIG_MT76_USB=m"
-            echo "CONFIG_MT76_CONNAC_LIB=m"
-            echo "CONFIG_MT7921_COMMON=m"
-            echo "CONFIG_MT7921U=m"
           } >> out/.config
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 6. Compilar la imagen del kernel incluyendo los nuevos módulos
+          # 6. Compilar la imagen limpia del kernel
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
