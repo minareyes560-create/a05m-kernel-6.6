@@ -44,12 +44,16 @@ jobs:
           # 4. Generar la configuración limpia
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 5. Inyectar opciones de red y soporte inalámbrico base
+          # 5. Inyectar opciones de red, soporte inalámbrico, DRIVERS MT76 y desactivar kheaders
           {
+            echo "CONFIG_IKHEADERS=n"
+            echo "CONFIG_IKHEADERS_PROC=n"
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
             echo "CONFIG_PROPELLER_CLANG=n"
             echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
+            
+            # Pila Inalámbrica Base
             echo "CONFIG_NET=y"
             echo "CONFIG_WIRELESS=y"
             echo "CONFIG_NETDEVICES=y"
@@ -59,7 +63,24 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
+
+            # Drivers MediaTek mt76 (Soporte USB y Monitor Mode)
+            echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_LEDS=y"
+            echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT76_CONNAC_LIB=m"
+            echo "CONFIG_MT7921_COMMON=m"
+            echo "CONFIG_MT7921U=m"
+            echo "CONFIG_MT76x2_COMMON=m"
+            echo "CONFIG_MT76x2U=m"
+            echo "CONFIG_MT7601U=m"
           } >> out/.config
+
+          # Desactivar IKHEADERS explícitamente para evitar el error de compilación
+          if [ -f "scripts/config" ]; then
+            ./scripts/config --file out/.config --disable CONFIG_IKHEADERS
+            ./scripts/config --file out/.config --disable CONFIG_IKHEADERS_PROC
+          fi
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
@@ -69,7 +90,7 @@ jobs:
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
-          cd "$GITHUB_WORKSPACE"
+          cd "$GITHUB_WORSPACE"
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
