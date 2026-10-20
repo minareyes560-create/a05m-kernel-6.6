@@ -22,8 +22,13 @@ jobs:
 
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # 2. Limpieza de fuentes
-          make mrproper || true
+          # Asegurar que ld.lld esté enlazado correctamente para Clang/LLVM
+          sudo ln -sf /usr/bin/ld.lld /usr/local/bin/ld.lld || true
+
+          # 2. Eliminar rastro de KernelSU de forma segura sin usar mrproper
+          rm -rf drivers/kernelsu || true
+          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
+
           mkdir -p out
 
           # 3. Copiar defconfig
@@ -59,7 +64,6 @@ jobs:
             echo "CONFIG_MT7601U=m"
           } >> out/.config
 
-          # Asegurar que se apague por completo en el archivo de configuración final
           if [ -f "scripts/config" ]; then
             ./scripts/config --file out/.config --disable CONFIG_IKHEADERS
           fi
