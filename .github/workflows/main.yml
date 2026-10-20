@@ -34,6 +34,10 @@ jobs:
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
 
+          # PARCHE RADICAL: Evitar que el Makefile intente compilar kheaders (Línea 1971)
+          sed -i '/kheaders/d' Makefile || true
+          find kernel/ -name "Makefile" -exec sed -i '/kheaders/d' {} + || true
+
           make mrproper || true
           mkdir -p out
 
@@ -44,7 +48,7 @@ jobs:
           # 4. Generar la configuración limpia
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 5. Inyectar opciones de red, soporte inalámbrico, DRIVERS MT76 y desactivar kheaders
+          # 5. Inyectar opciones de red, soporte inalámbrico y drivers mt76
           {
             echo "CONFIG_IKHEADERS=n"
             echo "CONFIG_IKHEADERS_PROC=n"
@@ -76,7 +80,6 @@ jobs:
             echo "CONFIG_MT7601U=m"
           } >> out/.config
 
-          # Desactivar IKHEADERS explícitamente para evitar el error de compilación
           if [ -f "scripts/config" ]; then
             ./scripts/config --file out/.config --disable CONFIG_IKHEADERS
             ./scripts/config --file out/.config --disable CONFIG_IKHEADERS_PROC
