@@ -23,7 +23,7 @@ supported.vendorpatchlevels=
 
 ### AnyKernel install
 ## boot shell variables
-block=/dev/block/mmcblk0p35;
+block=/dev/block/by-name/boot;
 is_slot_device=0;
 ramdisk_compression=auto;
 patch_vbmeta_flag=auto;
