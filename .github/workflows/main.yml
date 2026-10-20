@@ -15,52 +15,41 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
-      - name: Inyectar Configuración y Drivers Nativos MT76
+      - name: Inyectar Configuración y Compilar
         run: |
-          # 1. Encontrar la ruta exacta del defconfig
+          # 1. Localizar el defconfig en cualquier parte del repo
           CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
-          
           if [ -z "$CONFIG_PATH" ]; then
             CONFIG_PATH=$(find . -type f -name "*defconfig" | grep -E "vendor|mt" | head -n 1)
           fi
-          
-          if [ -n "$CONFIG_PATH" ]; then
-            DEFCONFIG=$(basename "$CONFIG_PATH")
-          else
-            echo "Error crítico: No se encontró el defconfig."
-            exit 1
+
+          # 2. Forzar posicionamiento directo en la raíz absoluta del workspace de GitHub
+          cd "$GITHUB_WORKSPACE"
+
+          # Buscar la carpeta real que contiene el Makefile principal del kernel
+          KERNEL_DIR=$(find . -name "Makefile" -exec grep -l "VERSION =" {} \; | head -n 1 | xargs dirname)
+          if [ -z "$KERNEL_DIR" ]; then
+            KERNEL_DIR="."
           fi
-
-          # 2. Cortar directamente desde /arch/arm64/configs/ para ir a la raíz del Kernel sin desvíos
-          KERNEL_DIR=$(echo "$CONFIG_PATH" | sed 's|/arch/arm64/configs/.*||')
-
-          echo "=========================================="
-          echo "Carpeta raíz asegurada: $KERNEL_DIR"
-          echo "Defconfig detectado: $DEFCONFIG"
-          echo "=========================================="
 
           cd "$KERNEL_DIR"
+          echo "Directorio de compilación fijo: $(pwd)"
 
-          # Verificación estricta del Makefile principal
-          if [ ! -f "Makefile" ]; then
-            echo "Error crítico: No se encontró el Makefile principal en $(pwd)."
-            ls -la
-            exit 1
-          fi
+          # Asegurar la ruta de configs y copiar el defconfig encontrado
+          mkdir -p arch/arm64/configs
+          cp "$GITHUB_WORKSPACE/$CONFIG_PATH" arch/arm64/configs/a05m_defconfig
 
-          # LIMPIEZA RADICAL DE KERNELSU
+          # Limpieza y preparación
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
-          
-          # Anulación de AFDO
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
-          
+
           make mrproper || true
           mkdir -p out
-          
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 "$DEFCONFIG"
-          
+
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
+
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -81,35 +70,25 @@ jobs:
             echo "CONFIG_MT7921_COMMON=m"
             echo "CONFIG_MT7921U=m"
           } >> out/.config
-          
+
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-      - name: Compilar Imagen del Kernel
-        run: |
-          # Entrar de forma dinámica a la carpeta donde se configuró 'out'
-          cd $(find . -type d -name "out" | head -n 1 | sed 's|/out||') || true
+          # Compilación de la imagen
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
+          cd "$GITHUB_WORKSPACE"
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
-          
-          if [ -z "$IMAGE_PATH" ]; then
-            echo "Error: No se encontró la imagen compilada."
-            exit 1
-          fi
-          
           cp "$IMAGE_PATH" AK3/
           
           cd AK3
           sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
-          
-          # Forzar la ruta correcta de MediaTek para la partición boot
           sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
           
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
