@@ -17,27 +17,29 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entrar a la carpeta interna del kernel correcta antes de buscar y compilar
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
-
-          # 1. Buscar la ruta real donde están los defconfig dentro del repositorio
-          CONFIG_PATH=$(find arch/arm64/configs/ -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
+          # 1. Buscar directamente el defconfig en todo el repositorio clonado de forma dinámica
+          CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
           
-          if [ -n "$CONFIG_PATH" ]; then
-            DEFCONFIG=$(echo "$CONFIG_PATH" | sed 's|.*/arch/arm64/configs/||')
-          else
-            CONFIG_PATH=$(find arch/arm64/configs/ -type f -name "*defconfig" | grep -E "vendor|mt" | head -n 1)
-            DEFCONFIG=$(echo "$CONFIG_PATH" | sed 's|.*/arch/arm64/configs/||')
+          if [ -z "$CONFIG_PATH" ]; then
+            CONFIG_PATH=$(find . -type f -name "*defconfig" | grep -E "vendor|mt" | head -n 1)
           fi
           
-          echo "=========================================="
-          echo "Defconfig detectado: $DEFCONFIG"
-          echo "=========================================="
-          
-          if [ -z "$DEFCONFIG" ]; then
+          if [ -n "$CONFIG_PATH" ]; then
+            # Extraer el nombre base del defconfig y calcular la ruta interna del kernel de forma segura
+            DEFCONFIG=$(basename "$CONFIG_PATH")
+            # Subir desde arch/arm64/configs hasta la raíz del código fuente del kernel
+            KERNEL_DIR=$(dirname $(dirname $(dirname $(dirname "$CONFIG_PATH"))))
+          else
             echo "Error crítico: No se encontró el defconfig de Samsung/MediaTek."
             exit 1
           fi
+          
+          echo "=========================================="
+          echo "Carpeta del Kernel detectada: $KERNEL_DIR"
+          echo "Defconfig detectado: $DEFCONFIG"
+          echo "=========================================="
+          
+          cd "$KERNEL_DIR" || true
 
           # LIMPIEZA RADICAL DE KERNELSU
           rm -rf drivers/kernelsu || true
@@ -50,7 +52,7 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 "$DEFCONFIG"
           
           {
             echo "CONFIG_AFDO_CLANG=n"
@@ -78,7 +80,8 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          # Entrar de forma dinámica a la carpeta del kernel donde se configuró 'out'
+          cd $(find . -type d -name "out" | head -n 1 | sed 's|/out||') || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
@@ -99,7 +102,7 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          # Forzar la ruta correcta de MediaTek
+          # Forzar la ruta correcta de MediaTek para el boot
           sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
           
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
