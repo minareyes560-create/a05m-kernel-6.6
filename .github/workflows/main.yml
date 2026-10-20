@@ -10,11 +10,6 @@ jobs:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Instalación de dependencias y Clang
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
-
       - name: Inyectar Configuración y Compilar
         run: |
           cd "$GITHUB_WORKSPACE"
@@ -25,39 +20,23 @@ jobs:
             KERNEL_SUBDIR="./kernel/kernel-6.6"
           fi
 
-          echo "Directorio base del kernel fijo: $GITHUB_WORKSPACE/$KERNEL_SUBDIR"
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # 2. Limpieza y preparación de fuentes
-          rm -rf drivers/kernelsu || true
-          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
-          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
-          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
-
-          # PARCHE RADICAL: Evitar que el Makefile intente compilar kheaders (Línea 1971)
-          sed -i '/kheaders/d' Makefile || true
-          find kernel/ -name "Makefile" -exec sed -i '/kheaders/d' {} + || true
-
+          # 2. Limpieza de fuentes
           make mrproper || true
           mkdir -p out
 
-          # 3. Copiar el a05m_defconfig nativo al directorio de configuraciones
+          # 3. Copiar defconfig
           mkdir -p arch/arm64/configs
           cp "$GITHUB_WORKSPACE/kernel/kernel_device_modules-6.6/arch/arm64/configs/a05m_defconfig" arch/arm64/configs/a05m_defconfig
 
-          # 4. Generar la configuración limpia
+          # 4. Generar configuración base
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 5. Inyectar opciones de red, soporte inalámbrico y drivers mt76
+          # 5. Inyectar soporte Inalámbrico, Drivers MediaTek mt76 y APAGAR IKHEADERS
           {
             echo "CONFIG_IKHEADERS=n"
             echo "CONFIG_IKHEADERS_PROC=n"
-            echo "CONFIG_AFDO_CLANG=n"
-            echo "CONFIG_AUTOFDO_CLANG=n"
-            echo "CONFIG_PROPELLER_CLANG=n"
-            echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
-            
-            # Pila Inalámbrica Base
             echo "CONFIG_NET=y"
             echo "CONFIG_WIRELESS=y"
             echo "CONFIG_NETDEVICES=y"
@@ -67,8 +46,8 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
-
-            # Drivers MediaTek mt76 (Soporte USB y Monitor Mode)
+            
+            # Drivers mt76
             echo "CONFIG_MT76_CORE=m"
             echo "CONFIG_MT76_LEDS=y"
             echo "CONFIG_MT76_USB=m"
@@ -80,15 +59,15 @@ jobs:
             echo "CONFIG_MT7601U=m"
           } >> out/.config
 
+          # Asegurar que se apague por completo en el archivo de configuración final
           if [ -f "scripts/config" ]; then
             ./scripts/config --file out/.config --disable CONFIG_IKHEADERS
-            ./scripts/config --file out/.config --disable CONFIG_IKHEADERS_PROC
           fi
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 6. Compilar la imagen del kernel junto con los módulos
+          # 6. Compilar
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image modules
 
       - name: Empaquetar con AnyKernel3 para TWRP
