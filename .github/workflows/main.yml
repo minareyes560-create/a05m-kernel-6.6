@@ -20,7 +20,7 @@ jobs:
           # Entrar a la carpeta interna del kernel correcta
           cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           
-          # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
+          # LIMPIEZA RADICAL DE KERNELSU
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
@@ -31,7 +31,7 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Forzar el defconfig correcto del A05 si existe, o buscar el de vendor
+          # Buscar el defconfig nativo del A05
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -45,6 +45,7 @@ jobs:
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
+          # Inyectar opciones de red de forma segura (como módulos o habilitadas)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -59,11 +60,11 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_MT76_CORE=y"
-            echo "CONFIG_MT76_USB=y"
-            echo "CONFIG_MT76_CONNAC_LIB=y"
-            echo "CONFIG_MT7921_COMMON=y"
-            echo "CONFIG_MT7921U=y"
+            echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT76_CONNAC_LIB=m"
+            echo "CONFIG_MT7921_COMMON=m"
+            echo "CONFIG_MT7921U=m"
           } >> out/.config
           
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
@@ -92,7 +93,7 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          # FORZAR LA RUTA DE LA PARTICIÓN BOOT DE MEDIATEK
+          # Forzar la ruta correcta de MediaTek
           sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
           
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
