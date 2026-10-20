@@ -17,7 +17,7 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # 1. Buscar la carpeta raíz real buscando directamente el Makefile del kernel junto a la estructura de arquitectura
+          # 1. Encontrar la ruta exacta del defconfig
           CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
           
           if [ -z "$CONFIG_PATH" ]; then
@@ -26,74 +26,25 @@ jobs:
           
           if [ -n "$CONFIG_PATH" ]; then
             DEFCONFIG=$(basename "$CONFIG_PATH")
-            # Encontrar el directorio raíz del kernel buscando hacia arriba desde el defconfig el Makefile principal que contenga la versión o el archivo MAINTAINERS
-            CURRENT_DIR=$(dirname "$CONFIG_PATH")
-            while [ ! -f "$CURRENT_DIR/MAINTAINERS" ] && [ ! -f "$CURRENT_DIR/drivers" ] && [ "$CURRENT_DIR" != "." ] && [ "$CURRENT_DIR" != "/" ]; do
-              CURRENT_DIR=$(dirname "$CURRENT_DIR")
-            done
-            # Si aún está en una ruta muy interna, buscar el Makefile raíz de Android/MediaTek
-            if [ ! -f "$CURRENT_DIR/Makefile" ]; then
-              KERNEL_DIR=$(find . -name "Makefile" -exec grep -l "VERSION = 6" {} \; | head -n 1 | xargs dirname)
-            else
-              KERNEL_DIR="$CURRENT_DIR"
-            fi
           else
             echo "Error crítico: No se encontró el defconfig."
             exit 1
           fi
-          
-          # Respaldo por si la detección automática requiere un anclaje directo al Makefile principal del repositorio clonado
-          if [ ! -f "$KERNEL_DIR/Makefile" ]; then
-            KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" -exec grep -l "SUBARCH" {} \; | head -n 1 | xargs dirname)
-          fi
+
+          # 2. Forzar la búsqueda de la carpeta que contienda el Makefile principal del kernel (evitando la de módulos)
+          KERNEL_DIR=$(find . -name "Makefile" -exec grep -l "SUBARCH" {} \; | head -n 1 | xargs dirname)
           
           if [ -z "$KERNEL_DIR" ] || [ ! -f "$KERNEL_DIR/Makefile" ]; then
-            KERNEL_DIR="."
+            # Alternativa buscando la carpeta padre de arch/arm64
+            KERNEL_DIR=$(dirname $(dirname $(dirname "$CONFIG_PATH")))
           fi
-          
+
           echo "=========================================="
           echo "Carpeta raíz asegurada: $KERNEL_DIR"
           echo "Defconfig detectado: $DEFCONFIG"
           echo "=========================================="
 
           cd "$KERNEL_DIR"
-
-          # LIMPIEZA RADICAL DE KERNELSU
-          rm -rf drivers/kernelsu || true
-          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
-          
-          # Anulación de AFDO
-          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
-          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
-          
-          make mrproper || true
-          mkdir -p out
-          
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 "$DEFCONFIG"
-          
-          {
-            echo "CONFIG_AFDO_CLANG=n"
-            echo "CONFIG_AUTOFDO_CLANG=n"
-            echo "CONFIG_PROPELLER_CLANG=n"
-            echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
-            echo "CONFIG_NET=y"
-            echo "CONFIG_WIRELESS=y"
-            echo "CONFIG_NETDEVICES=y"
-            echo "CONFIG_WLAN=y"
-            echo "CONFIG_CFG80211=y"
-            echo "CONFIG_MAC80211=y"
-            echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
-            echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
-            echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_MT76_CORE=m"
-            echo "CONFIG_MT76_USB=m"
-            echo "CONFIG_MT76_CONNAC_LIB=m"
-            echo "CONFIG_MT7921_COMMON=m"
-            echo "CONFIG_MT7921U=m"
-          } >> out/.config
-          
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
       - name: Compilar Imagen del Kernel
         run: |
