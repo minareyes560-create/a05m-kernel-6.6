@@ -44,7 +44,7 @@ jobs:
           # 4. Generar la configuración limpia
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 5. Inyectar opciones de red y soporte inalámbrico base de forma segura
+          # 5. Inyectar opciones de red y soporte inalámbrico base
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -64,8 +64,8 @@ jobs:
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 6. Compilar la imagen limpia del kernel
-          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
+          # 6. Compilar la imagen del kernel junto con los módulos
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image modules
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
