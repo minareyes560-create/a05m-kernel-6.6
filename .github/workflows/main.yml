@@ -17,14 +17,15 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
+          # Entrar a la carpeta interna del kernel correcta antes de buscar y compilar
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+
           # 1. Buscar la ruta real donde están los defconfig dentro del repositorio
-          CONFIG_PATH=$(find . -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
+          CONFIG_PATH=$(find arch/arm64/configs/ -type f -name "*a05*defconfig" -o -name "*mt6768*defconfig" | head -n 1)
           
           if [ -n "$CONFIG_PATH" ]; then
-            # Extraer solo el nombre relativo dentro de arch/arm64/configs/
             DEFCONFIG=$(echo "$CONFIG_PATH" | sed 's|.*/arch/arm64/configs/||')
           else
-            # Si no lo halla por nombre corto, buscar cualquier defconfig de vendor/mediatek
             CONFIG_PATH=$(find arch/arm64/configs/ -type f -name "*defconfig" | grep -E "vendor|mt" | head -n 1)
             DEFCONFIG=$(echo "$CONFIG_PATH" | sed 's|.*/arch/arm64/configs/||')
           fi
@@ -42,7 +43,7 @@ jobs:
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          # Anulación de AFDO
+          # Anulación de AFDO de forma segura solo si los archivos existen
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           
