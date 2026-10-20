@@ -19,8 +19,7 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
 
-          # 1. Posicionarnos directamente en la raíz principal del kernel de Samsung (evitando tools)
-          # Buscamos la ruta que contiene el Makefile principal del kernel superior
+          # 1. Posicionarnos en la raíz principal del kernel
           KERNEL_SUBDIR=$(find . -name "Makefile" -path "*/kernel-6.6/Makefile" | head -n 1 | xargs dirname)
           if [ -z "$KERNEL_SUBDIR" ]; then
             KERNEL_SUBDIR="./kernel/kernel-6.6"
@@ -29,7 +28,13 @@ jobs:
           echo "Directorio base del kernel fijo: $GITHUB_WORKSPACE/$KERNEL_SUBDIR"
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # 2. Limpieza y preparación
+          # 2. Inyectar el código fuente de los drivers mt76 para el adaptador Panda (MediaTek mt7921u)
+          echo "Clonando drivers mt76 para soporte nativo de Modo Monitor..."
+          mkdir -p drivers/net/wireless/mediatek
+          git clone https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git firmware_tmp || true
+          git clone https://github.com/openwrt/mt76.git drivers/net/wireless/mediatek/mt76 || true
+
+          # 3. Limpieza y preparación
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
@@ -38,14 +43,13 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # 3. Copiar el a05m_defconfig desde su ruta exacta hacia la carpeta de configuraciones del kernel principal
+          # 4. Copiar el a05m_defconfig y agregarlo al build
           mkdir -p arch/arm64/configs
           cp "$GITHUB_WORKSPACE/kernel/kernel_device_modules-6.6/arch/arm64/configs/a05m_defconfig" arch/arm64/configs/a05m_defconfig
 
-          # 4. Generar la configuración usando el defconfig copiado
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 5. Inyectar drivers mt76/mt7921u y opciones de red para Modo Monitor de forma segura
+          # 5. Inyectar opciones de red y los drivers mt76/mt7921u en el .config
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -70,7 +74,7 @@ jobs:
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 6. Compilar la imagen del kernel
+          # 6. Compilar la imagen del kernel incluyendo los nuevos módulos
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
@@ -83,16 +87,15 @@ jobs:
           
           cd AK3
           
-          # Configurar propiedades del dispositivo para que AnyKernel3 lo acepte
+          # Configurar propiedades del dispositivo para TWRP
           sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           sed -i 's/device.name4=.*/device.name4=SM-A055/g' anykernel.sh
           
-          # Forzar la ruta de la partición boot específica para MediaTek de Samsung
+          # Forzar ruta de partición boot para MediaTek de Samsung
           sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
           
-          # Desactivar verificación estricta de slots
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
 
