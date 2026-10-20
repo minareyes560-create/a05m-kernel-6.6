@@ -19,53 +19,27 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
 
-          echo "=== Listando todos los defconfig disponibles en el repositorio para depuración ==="
-          find . -name "*defconfig"
-          echo "==============================================================================="
-
-          # 1. Búsqueda inteligente priorizando la carpeta arch/arm64/configs pero aceptando variantes del modelo
-          CONFIG_PATH=$(find . -path "*/arch/arm64/configs/*" -name "*defconfig" ! -name "*gki*" | head -n 1)
-          
-          if [ -z "$CONFIG_PATH" ]; then
-            # Buscar cualquier defconfig que contenga 'a05' o la placa de MediaTek
-            CONFIG_PATH=$(find . -name "*a05*defconfig" -o -name "*mt*defconfig" | grep -v "gki" | head -n 1)
-          fi
-
-          if [ -z "$CONFIG_PATH" ]; then
-            # Último recurso: cualquier defconfig que no sea GKI ni esté en vendor
-            CONFIG_PATH=$(find . -name "*defconfig" ! -name "*gki*" ! -path "*/vendor/*" | head -n 1)
-          fi
-          
-          if [ -z "$CONFIG_PATH" ]; then
-            echo "Error crítico: No se pudo localizar ningún defconfig nativo válido."
-            exit 1
-          fi
-
-          CONFIG_NAME=$(basename "$CONFIG_PATH")
-          echo "Defconfig NATIVO seleccionado: $CONFIG_NAME en $CONFIG_PATH"
-
-          # 2. Localizar la raíz real del kernel asegurando que contenga el Makefile principal
+          # 1. Localizar la raíz real del kernel principal (el nivel superior que contiene arch/ y un Makefile principal)
           KERNEL_SUBDIR=""
           for dir in $(find . -type d -name "arm64" -path "*/arch/arm64"); do
             PARENT_DIR=$(dirname $(dirname "$dir"))
-            if [ -f "$PARENT_DIR/Makefile" ]; then
+            # Evitamos entrar en submódulos si existe un Makefile en el nivel superior de arriba
+            if [ -f "$PARENT_DIR/Makefile" ] && [[ "$PARENT_DIR" != *kernel_device_modules* ]]; then
               KERNEL_SUBDIR="$PARENT_DIR"
               break
             fi
           done
 
           if [ -z "$KERNEL_SUBDIR" ]; then
-            KERNEL_SUBDIR="."
+            # Si no encuentra el superior, usa la ruta donde está el a05m_defconfig
+            CONFIG_DIR=$(find . -name "a05m_defconfig" | head -n 1)
+            KERNEL_SUBDIR=$(echo "$CONFIG_DIR" | sed 's|/arch/arm64/configs/a05m_defconfig||')
           fi
 
           echo "Directorio base del kernel fijo: $GITHUB_WORKSPACE/$KERNEL_SUBDIR"
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # 3. Copiar la configuración nativa a la carpeta de arm64
-          mkdir -p arch/arm64/configs
-          cp "$GITHUB_WORKSPACE/$CONFIG_PATH" arch/arm64/configs/$CONFIG_NAME
-
-          # 4. Limpieza y preparación
+          # 2. Limpieza y preparación
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
@@ -74,10 +48,10 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # 5. Generar la configuración del kernel con el defconfig nativo
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $CONFIG_NAME
+          # 3. Generar la configuración usando directamente el defconfig de a05m
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 6. Inyectar drivers mt76/mt7921u y opciones de red para Modo Monitor de forma segura
+          # 4. Inyectar drivers mt76/mt7921u y opciones de red para Modo Monitor de forma segura
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -102,7 +76,7 @@ jobs:
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 7. Compilar la imagen del kernel
+          # 5. Compilar la imagen del kernel
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
