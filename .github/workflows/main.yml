@@ -31,19 +31,8 @@ jobs:
             exit 1
           fi
 
-          # 2. Buscar la carpeta raíz real buscando el Makefile que contenga la variable VERSION (evitando subcarpetas de herramientas o módulos)
-          KERNEL_DIR=""
-          for m in $(find . -name "Makefile"); do
-            if grep -q "VERSION =" "$m"; then
-              KERNEL_DIR=$(dirname "$m")
-              break
-            fi
-          done
-
-          # Si no lo encuentra por VERSION, usar el directorio base de la arquitectura del defconfig subiendo de forma segura
-          if [ -z "$KERNEL_DIR" ] || [ ! -f "$KERNEL_DIR/Makefile" ]; then
-            KERNEL_DIR=$(dirname $(dirname $(dirname $(dirname "$CONFIG_PATH"))))
-          fi
+          # 2. Cortar directamente desde /arch/arm64/configs/ para ir a la raíz del Kernel sin desvíos
+          KERNEL_DIR=$(echo "$CONFIG_PATH" | sed 's|/arch/arm64/configs/.*||')
 
           echo "=========================================="
           echo "Carpeta raíz asegurada: $KERNEL_DIR"
@@ -51,6 +40,13 @@ jobs:
           echo "=========================================="
 
           cd "$KERNEL_DIR"
+
+          # Verificación estricta del Makefile principal
+          if [ ! -f "Makefile" ]; then
+            echo "Error crítico: No se encontró el Makefile principal en $(pwd)."
+            ls -la
+            exit 1
+          fi
 
           # LIMPIEZA RADICAL DE KERNELSU
           rm -rf drivers/kernelsu || true
@@ -113,7 +109,7 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          # Forzar la ruta correcta de MediaTek para el boot
+          # Forzar la ruta correcta de MediaTek para la partición boot
           sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
           
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
