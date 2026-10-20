@@ -91,7 +91,9 @@ jobs:
           sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
-          sed -i 's/block=\/dev\/block\/.*/block=\/dev\/block\/by-name\/boot;/g' anykernel.sh
+          
+          # FORZAR LA RUTA DE LA PARTICIÓN BOOT DE MEDIATEK
+          sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
           
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
 
