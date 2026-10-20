@@ -19,15 +19,16 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
 
-          # 1. EVITAR GKI: Buscar el defconfig nativo del fabricante (excluyendo gki)
-          CONFIG_PATH=$(find . -type f -name "*defconfig" ! -name "*gki*" | head -n 1)
+          # 1. Buscar el defconfig nativo exclusivamente dentro de arch/arm64/configs (excluyendo gki)
+          CONFIG_PATH=$(find . -path "*/arch/arm64/configs/*" -name "*defconfig" ! -name "*gki*" | head -n 1)
+          
           if [ -z "$CONFIG_PATH" ]; then
-            # Si no encuentra uno específico, busca cualquier defconfig disponible que no sea GKI
-            CONFIG_PATH=$(find . -type f -name "defconfig" ! -path "*/gki/*" | head -n 1)
+            # Búsqueda secundaria estricta en cualquier carpeta configs/
+            CONFIG_PATH=$(find . -path "*/configs/*" -name "*defconfig" ! -name "*gki*" ! -path "*/vendor/*" | head -n 1)
           fi
           
           if [ -z "$CONFIG_PATH" ]; then
-            echo "Error: No se encontró ningún defconfig nativo del fabricante."
+            echo "Error: No se encontró el defconfig nativo del kernel en arch/arm64/configs/."
             exit 1
           fi
 
