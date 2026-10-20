@@ -27,8 +27,16 @@ jobs:
           CONFIG_NAME=$(basename "$CONFIG_PATH")
           echo "Defconfig detectado: $CONFIG_NAME en $CONFIG_PATH"
 
-          # 2. Localizar la raíz real del kernel buscando la estructura arch/arm64
-          KERNEL_SUBDIR=$(find . -type d -name "arm64" -path "*/arch/arm64" | head -n 1 | xargs dirname | xargs dirname)
+          # 2. Localizar la raíz real del kernel (verificando que contenga un Makefile principal)
+          KERNEL_SUBDIR=""
+          for dir in $(find . -type d -name "arm64" -path "*/arch/arm64"); do
+            PARENT_DIR=$(dirname $(dirname "$dir"))
+            if [ -f "$PARENT_DIR/Makefile" ]; then
+              KERNEL_SUBDIR="$PARENT_DIR"
+              break
+            fi
+          done
+
           if [ -z "$KERNEL_SUBDIR" ]; then
             KERNEL_SUBDIR="."
           fi
