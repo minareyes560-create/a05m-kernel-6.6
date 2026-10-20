@@ -19,21 +19,11 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
 
-          # 1. Localizar la raíz real del kernel principal (el nivel superior que contiene arch/ y un Makefile principal)
-          KERNEL_SUBDIR=""
-          for dir in $(find . -type d -name "arm64" -path "*/arch/arm64"); do
-            PARENT_DIR=$(dirname $(dirname "$dir"))
-            # Evitamos entrar en submódulos si existe un Makefile en el nivel superior de arriba
-            if [ -f "$PARENT_DIR/Makefile" ] && [[ "$PARENT_DIR" != *kernel_device_modules* ]]; then
-              KERNEL_SUBDIR="$PARENT_DIR"
-              break
-            fi
-          done
-
+          # 1. Posicionarnos directamente en la raíz principal del kernel de Samsung (evitando tools)
+          # Buscamos la ruta que contiene el Makefile principal del kernel superior
+          KERNEL_SUBDIR=$(find . -name "Makefile" -path "*/kernel-6.6/Makefile" | head -n 1 | xargs dirname)
           if [ -z "$KERNEL_SUBDIR" ]; then
-            # Si no encuentra el superior, usa la ruta donde está el a05m_defconfig
-            CONFIG_DIR=$(find . -name "a05m_defconfig" | head -n 1)
-            KERNEL_SUBDIR=$(echo "$CONFIG_DIR" | sed 's|/arch/arm64/configs/a05m_defconfig||')
+            KERNEL_SUBDIR="./kernel/kernel-6.6"
           fi
 
           echo "Directorio base del kernel fijo: $GITHUB_WORKSPACE/$KERNEL_SUBDIR"
@@ -48,10 +38,14 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # 3. Generar la configuración usando directamente el defconfig de a05m
+          # 3. Copiar el a05m_defconfig desde su ruta exacta hacia la carpeta de configuraciones del kernel principal
+          mkdir -p arch/arm64/configs
+          cp "$GITHUB_WORKSPACE/kernel/kernel_device_modules-6.6/arch/arm64/configs/a05m_defconfig" arch/arm64/configs/a05m_defconfig
+
+          # 4. Generar la configuración usando el defconfig copiado
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 a05m_defconfig
 
-          # 4. Inyectar drivers mt76/mt7921u y opciones de red para Modo Monitor de forma segura
+          # 5. Inyectar drivers mt76/mt7921u y opciones de red para Modo Monitor de forma segura
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -76,7 +70,7 @@ jobs:
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 5. Compilar la imagen del kernel
+          # 6. Compilar la imagen del kernel
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
