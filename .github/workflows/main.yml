@@ -22,10 +22,12 @@ jobs:
 
           cd "$GITHUB_WORKSPACE/$KERNEL_SUBDIR"
 
-          # Asegurar que ld.lld esté enlazado correctamente para Clang/LLVM
+          # Forzar la ruta correcta y visible de lld para el compilador
+          sudo ln -sf /usr/bin/ld.lld /usr/bin/aarch64-linux-gnu-ld.lld || true
           sudo ln -sf /usr/bin/ld.lld /usr/local/bin/ld.lld || true
+          export PATH="/usr/lib/llvm-*/bin:$PATH"
 
-          # 2. Eliminar rastro de KernelSU de forma segura sin usar mrproper
+          # 2. Eliminar rastro de KernelSU
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
 
@@ -71,7 +73,7 @@ jobs:
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
 
-          # 6. Compilar
+          # 6. Compilar con las rutas de enlazador aseguradas
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image modules
 
       - name: Empaquetar con AnyKernel3 para TWRP
