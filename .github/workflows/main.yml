@@ -9,91 +9,90 @@ jobs:
     steps:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Instalar dependencias de compilacion
+      - name: Instalación de dependencias y Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld python3 rsync git wget
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
-      - name: Inyectar controladores y compilar directamente
+      - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          cd "$GITHUB_WORKSPACE"
+          # Entrar a la carpeta interna del kernel correcta
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           
-          # Localizar el archivo defconfig especifico del Samsung A05
-          CONFIG_FILE=$(find . -name "a05m_defconfig" -o -name "a05_defconfig" | head -n 1)
-          if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find . -name "*defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
-          fi
+          # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
+          rm -rf drivers/kernelsu || true
+          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          echo "Archivo de configuracion localizado: $CONFIG_FILE"
+          # Anulación de AFDO
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           
-          # Desactivar AFDO e inyectar controladores de la antena Panda (MT7921U / MT76)
-          echo "CONFIG_AFDO_CLANG=n" >> "$CONFIG_FILE"
-          echo "CONFIG_AUTOFDO_CLANG=n" >> "$CONFIG_FILE"
-          echo "CONFIG_NET=y" >> "$CONFIG_FILE"
-          echo "CONFIG_WIRELESS=y" >> "$CONFIG_FILE"
-          echo "CONFIG_CFG80211=y" >> "$CONFIG_FILE"
-          echo "CONFIG_MAC80211=y" >> "$CONFIG_FILE"
-          echo "CONFIG_USB_NET_DRIVERS=y" >> "$CONFIG_FILE"
-          echo "CONFIG_MT76_CORE=m" >> "$CONFIG_FILE"
-          echo "CONFIG_MT76_LEDS=y" >> "$CONFIG_FILE"
-          echo "CONFIG_MT7921_COMMON=m" >> "$CONFIG_FILE"
-          echo "CONFIG_MT7921U=m" >> "$CONFIG_FILE"
-          echo "CONFIG_MT76_USB=m" >> "$CONFIG_FILE"
-          
-          # Limpiar llamadas a perfiles afdo en los Makefiles
-          find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
-          
-          # Configurar entorno de compilacion ARM64 con Clang
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export PATH="/usr/lib/llvm-18/bin:$PATH"
-          
+          make mrproper || true
           mkdir -p out
           
-          # Extraer el nombre base del defconfig encontrado
-          REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
+          # Forzar el defconfig correcto del A05 si existe, o buscar el de vendor
+          if [ -f "arch/arm64/configs/a05_defconfig" ]; then
+            DEFCONFIG="a05_defconfig"
+          elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
+            DEFCONFIG="vendor/a05_defconfig"
+          elif [ -f "arch/arm64/configs/exynos*defconfig" ] || [ -f "arch/arm64/configs/mt*" ]; then
+            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
+          else
+            DEFCONFIG="gki_defconfig"
+          fi
           
-          # Copiar el defconfig a la ruta global de arquitecturas para asegurar lectura limpia
-          mkdir -p arch/arm64/configs
-          cp -f "$CONFIG_FILE" arch/arm64/configs/$REAL_DEFCONFIG
+          echo "Usando defconfig: $DEFCONFIG"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
-          # Generar la configuracion y compilar el kernel directamente
-          make O=out ARCH=arm64 CC=clang LD=ld.lld $REAL_DEFCONFIG
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld Image
+          {
+            echo "CONFIG_AFDO_CLANG=n"
+            echo "CONFIG_AUTOFDO_CLANG=n"
+            echo "CONFIG_PROPELLER_CLANG=n"
+            echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
+            echo "CONFIG_NET=y"
+            echo "CONFIG_WIRELESS=y"
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_MAC80211=y"
+            echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
+            echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
+            echo "CONFIG_NL80211_TESTMODE=y"
+            echo "CONFIG_MT76_CORE=y"
+            echo "CONFIG_MT76_USB=y"
+            echo "CONFIG_MT76_CONNAC_LIB=y"
+            echo "CONFIG_MT7921_COMMON=y"
+            echo "CONFIG_MT7921U=y"
+          } >> out/.config
+          
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
+
+      - name: Compilar Imagen del Kernel
+        run: |
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
-          cd "$GITHUB_WORKSPACE"
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
-          # Buscar la imagen compilada del kernel en cualquier ruta de salida o del workspace
-          IMAGE_PATH=$(find out/ -name "Image*" -type f 2>/dev/null | grep -v "stub" | head -n 1)
-          if [ -z "$IMAGE_PATH" ]; then
-            IMAGE_PATH=$(find . -name "Image" -o -name "Image.gz" -type f 2>/dev/null | grep -v "AK3" | grep -v ".git" | head -n 1)
-          fi
+          IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
-            echo "Error: No se encontro ninguna imagen compilada del kernel."
+            echo "Error: No se encontró la imagen compilada."
             exit 1
           fi
           
-          echo "Imagen encontrada en: $IMAGE_PATH"
-          cp "$IMAGE_PATH" AK3/Image
+          cp "$IMAGE_PATH" AK3/
           
           cd AK3
-          
-          # Configurar propiedades del dispositivo para TWRP
           sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
-          sed -i 's/device.name4=.*/device.name4=SM-A055/g' anykernel.sh
-          sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
-          sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
-          sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
-
+          sed -i 's/block=\/dev\/block\/.*/block=\/dev\/block\/by-name\/boot;/g' anykernel.sh
+          
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
 
       - name: Subir ZIP Flasheable como Artefacto
