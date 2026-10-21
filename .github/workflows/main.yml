@@ -16,11 +16,11 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Buscar de forma estricta dentro de la carpeta de arquitecturas arm64/configs
-          CONFIG_FILE=$(find arch/arm64/configs/ -type f -name "*defconfig" -o -name "*.config" | head -n 1)
+          # Buscar cualquier archivo defconfig válido en el repositorio excluyendo carpetas internas de vendor o build
+          CONFIG_FILE=$(find . -name "*_defconfig" -o -name "defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
           
           if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find . -path "*/arch/arm64/configs/*" head -n 1)
+            CONFIG_FILE=$(find . -name "*.config" | head -n 1)
           fi
           
           echo "Archivo de configuracion localizado: $CONFIG_FILE"
@@ -54,13 +54,19 @@ jobs:
           
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld
           
-          # Obtener el nombre del defconfig real dentro de arch/arm64/configs/
-          CONFIG_FILE=$(find arch/arm64/configs/ -type f -name "*defconfig" -o -name "*.config" | head -n 1)
+          # Ubicar el defconfig real y extraer su nombre
+          CONFIG_FILE=$(find . -name "*_defconfig" -o -name "defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
           REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
           
-          echo "Utilizando objetivo de configuracion oficial: $REAL_DEFCONFIG"
+          echo "Utilizando objetivo de configuracion: $REAL_DEFCONFIG"
           
-          # Cargar la configuración usando el nombre base exacto del defconfig encontrado
+          # Asegurar copia en la ruta estándar de arquitectura para el compilador
+          mkdir -p arch/arm64/configs/
+          if [ -f "$CONFIG_FILE" ]; then
+            cp -f "$CONFIG_FILE" arch/arm64/configs/
+          fi
+          
+          # Cargar la configuración usando el nombre base del defconfig
           make O=out ARCH=arm64 "$REAL_DEFCONFIG"
           
           # Compilar el kernel en paralelo usando clang
