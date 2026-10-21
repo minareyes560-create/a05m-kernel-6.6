@@ -14,10 +14,12 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Localizar la ruta exacta del defconfig original en el repositorio
-          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|gki" | head -n 1)
+          # Encontrar el primer defconfig real que exista en todo el repositorio
+          CONFIG_FILE=$(find . -name "*.defconfig" -o -name "*_defconfig" | head -n 1)
+          
           if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
+            # Si no encuentra archivos con terminación defconfig, busca cualquier archivo .config
+            CONFIG_FILE=$(find . -name "*.config" | head -n 1)
           fi
           
           echo "Archivo de configuracion localizado: $CONFIG_FILE"
@@ -39,7 +41,7 @@ jobs:
           echo "CONFIG_MT76_USB=m" >> "$CONFIG_FILE"
           
           # Limpiar llamadas a perfiles afdo en los Makefiles
-          find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/devnull || true
+          find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
 
       - name: Compilar el Kernel
         run: |
@@ -51,22 +53,25 @@ jobs:
           
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev
           
-          # Obtener el nombre base real del archivo de configuración original
-          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|gki" | head -n 1)
+          # Obtener el nombre del archivo de configuración real encontrado
+          CONFIG_FILE=$(find . -name "*.defconfig" -o -name "*_defconfig" | head -n 1)
           if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
+            CONFIG_FILE=$(find . -name "*.config" | head -n 1)
           fi
           
-          if [ -n "$CONFIG_FILE" ]; then
-            REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
-          else
-            REAL_DEFCONFIG="gki_defconfig"
-          fi
+          REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
           
           echo "Utilizando objetivo de configuracion original: $REAL_DEFCONFIG"
           
+          # Si el archivo tiene extensión .defconfig, generamos el make con su nombre base o ruta relativa
+          if [[ "$REAL_DEFCONFIG" == *.defconfig ]]; then
+            TARGET_NAME="${REAL_DEFCONFIG%.defconfig}"
+          else
+            TARGET_NAME="${REAL_DEFCONFIG%.config}"
+          fi
+          
           # Generar la configuracion y compilar
-          make O=out ARCH=arm64 "$REAL_DEFCONFIG"
+          make O=out ARCH=arm64 "$TARGET_NAME" || make O=out ARCH=arm64 "$REAL_DEFCONFIG"
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang
 
       - name: Empaquetar con AnyKernel3 para TWRP
