@@ -10,13 +10,21 @@ jobs:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Configurar controladores MT7921U para la antena Panda AXE3000
+      - name: Configurar controladores MT7921U y desactivar AFDO
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Encontrar la ruta del defconfig del Samsung A05
-          DEFCONFIG_PATH=$(find arch/arm64/configs -name "*a05*defconfig" | head -n 1)
-          echo "Modificando el archivo de configuracion: $DEFCONFIG_PATH"
+          # Buscar el archivo defconfig de manera global
+          DEFCONFIG_PATH=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
+          if [ -z "$DEFCONFIG_PATH" ]; then
+            DEFCONFIG_PATH=$(find . -name "*defconfig" | head -n 1)
+          fi
+          
+          echo "Archivo de configuracion localizado: $DEFCONFIG_PATH"
+          
+          # Desactivar AFDO para evitar errores de perfiles ausentes
+          echo "CONFIG_AFDO_CLANG=n" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_AUTOFDO_CLANG=n" >> "$DEFCONFIG_PATH"
           
           # Habilitar soporte inalambrico y stack mac80211
           echo "CONFIG_NET=y" >> "$DEFCONFIG_PATH"
@@ -44,6 +52,9 @@ jobs:
           echo "CONFIG_MT7921_COMMON=m" >> "$DEFCONFIG_PATH"
           echo "CONFIG_MT7921U=m" >> "$DEFCONFIG_PATH"
           echo "CONFIG_MT76_USB=m" >> "$DEFCONFIG_PATH"
+          
+          # Limpiar llamadas a archivos .afdo en los Makefiles si existen
+          find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
