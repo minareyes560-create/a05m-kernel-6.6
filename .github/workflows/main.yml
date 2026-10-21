@@ -15,7 +15,7 @@ jobs:
       - name: Instalar dependencias de compilacion
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld python3 rsync
+          sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld python3 rsync git wget
 
       - name: Configurar controladores MT7921U, desactivar AFDO y preparar Defconfig
         run: |
@@ -65,11 +65,11 @@ jobs:
           # Copiar la configuracion personalizada como .config activo de salida
           cp -f "$CUSTOM_CONFIG_PATH" out/.config
           
-          # Procesar y validar las opciones de configuracion
-          make O=out ARCH=arm64 olddefconfig
+          # Usar oldconfig automatizado con respuestas vacias para evitar errores de reglas
+          yes "" | make O=out ARCH=arm64 oldconfig || make O=out ARCH=arm64 silentoldconfig
           
-          # Compilar la imagen del kernel
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang Image || make -j$(nproc --all) O=out ARCH=arm64 CC=clang
+          # Compilar la imagen del kernel en paralelo usando Clang
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld Image || make -j$(nproc --all) O=out ARCH=arm64 CC=clang Image.gz
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
