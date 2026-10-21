@@ -17,24 +17,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld python3 rsync git wget
 
-      - name: Configurar controladores MT7921U, desactivar AFDO y preparar Defconfig
+      - name: Inyectar controladores y compilar usando el script oficial
         run: |
           cd "$GITHUB_WORKSPACE"
           
           # Localizar el archivo defconfig especifico del Samsung A05
           CONFIG_FILE=$(find . -name "a05m_defconfig" -o -name "a05_defconfig" | head -n 1)
-          
           if [ -z "$CONFIG_FILE" ]; then
             CONFIG_FILE=$(find . -name "*defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
           fi
           
           echo "Archivo de configuracion localizado: $CONFIG_FILE"
           
-          # Desactivar AFDO
+          # Desactivar AFDO e inyectar controladores de la antena Panda (MT7921U / MT76)
           echo "CONFIG_AFDO_CLANG=n" >> "$CONFIG_FILE"
           echo "CONFIG_AUTOFDO_CLANG=n" >> "$CONFIG_FILE"
-          
-          # Habilitar soporte inalambrico y controladores MT7921U / MT76 para la antena Panda
           echo "CONFIG_NET=y" >> "$CONFIG_FILE"
           echo "CONFIG_WIRELESS=y" >> "$CONFIG_FILE"
           echo "CONFIG_CFG80211=y" >> "$CONFIG_FILE"
@@ -46,40 +43,40 @@ jobs:
           echo "CONFIG_MT7921U=m" >> "$CONFIG_FILE"
           echo "CONFIG_MT76_USB=m" >> "$CONFIG_FILE"
           
-          # Exportar la ruta del archivo modificado
-          echo "CUSTOM_CONFIG_PATH=$(realpath "$CONFIG_FILE")" >> $GITHUB_ENV
-          
           # Limpiar llamadas a perfiles afdo en los Makefiles
           find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
-
-      - name: Compilar el Kernel
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          set -e
           
-          export ARCH=arm64
-          export SUBARCH=arm64
+          # Buscar si el repositorio incluye un script de compilacion automatizado (build.sh)
+          BUILD_SCRIPT=$(find . -maxdepth 3 -name "build.sh" | head -n 1)
           
-          mkdir -p out
-          
-          # Copiar la configuracion personalizada como .config activo de salida
-          cp -f "$CUSTOM_CONFIG_PATH" out/.config
-          
-          # Usar oldconfig automatizado con respuestas vacias para evitar errores de reglas
-          yes "" | make O=out ARCH=arm64 oldconfig || make O=out ARCH=arm64 silentoldconfig
-          
-          # Compilar la imagen del kernel en paralelo usando Clang
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld Image || make -j$(nproc --all) O=out ARCH=arm64 CC=clang Image.gz
+          if [ -n "$BUILD_SCRIPT" ]; then
+            echo "Ejecutando script de compilacion oficial: $BUILD_SCRIPT"
+            # Configurar variables de entorno estandar para GKI build.sh
+            export ARCH=arm64
+            export SUBARCH=arm64
+            export CLANG_TRIPLE=aarch64-linux-gnu-
+            export CROSS_COMPILE=aarch64-linux-gnu-
+            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            
+            # Ejecutar el script oficial del kernel
+            bash "$BUILD_SCRIPT"
+          else
+            echo "No se encontro script build.sh, utilizando compilacion directa de respaldo..."
+            export ARCH=arm64
+            export SUBARCH=arm64
+            mkdir -p out
+            make -j$(nproc --all) O=out ARCH=arm64 CC=clang Image
+          fi
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
           cd "$GITHUB_WORKSPACE"
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
-          # Buscar la imagen compilada del kernel
+          # Buscar la imagen compilada del kernel en cualquier ruta de salida o del workspace
           IMAGE_PATH=$(find out/ -name "Image*" -type f 2>/dev/null | grep -v "stub" | head -n 1)
           if [ -z "$IMAGE_PATH" ]; then
-            IMAGE_PATH=$(find . -name "Image*" -type f 2>/dev/null | grep -v "stub" | head -n 1)
+            IMAGE_PATH=$(find . -name "Image" -o -name "Image.gz" -type f 2>/dev/null | grep -v "AK3" | grep -v ".git" | head -n 1)
           fi
           
           if [ -z "$IMAGE_PATH" ]; then
