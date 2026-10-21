@@ -10,11 +10,44 @@ jobs:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      
+      - name: Configurar controladores MT7921U para la antena Panda AXE3000
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          
+          # Encontrar la ruta del defconfig del Samsung A05
+          DEFCONFIG_PATH=$(find arch/arm64/configs -name "*a05*defconfig" | head -n 1)
+          echo "Modificando el archivo de configuracion: $DEFCONFIG_PATH"
+          
+          # Habilitar soporte inalambrico y stack mac80211
+          echo "CONFIG_NET=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_WIRELESS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211_DEVELOPER_WARNINGS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211_CERTIFICATION_ONUS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211_DEFAULT_PS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211_DEBUGFS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_HAS_RC=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_RC_DEFAULT=\"minstrel_ht\"" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_MESH=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_DEBUGFS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MAC80211_LEDS=y" >> "$DEFCONFIG_PATH"
+          
+          # Controladores USB Net y MediaTek MT76 / MT7921U (Panda PAU0F / AXE3000)
+          echo "CONFIG_USB_NET_DRIVERS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MT76_CORE=m" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MT76_LEDS=y" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MT7921_COMMON=m" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MT7921U=m" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_MT76_USB=m" >> "$DEFCONFIG_PATH"
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
-          cd "$GITHUB_WORSPACE"
+          cd "$GITHUB_WORKSPACE"
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
