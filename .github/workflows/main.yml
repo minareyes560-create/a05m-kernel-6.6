@@ -12,15 +12,20 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Instalar dependencias de compilacion
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld python3 rsync
+
       - name: Configurar controladores MT7921U, desactivar AFDO y preparar Defconfig
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Buscar cualquier archivo defconfig válido en el repositorio excluyendo carpetas internas de vendor o build
-          CONFIG_FILE=$(find . -name "*_defconfig" -o -name "defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
+          # Localizar el archivo defconfig especifico del Samsung A05
+          CONFIG_FILE=$(find . -name "a05m_defconfig" -o -name "a05_defconfig" | head -n 1)
           
           if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find . -name "*.config" | head -n 1)
+            CONFIG_FILE=$(find . -name "*defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
           fi
           
           echo "Archivo de configuracion localizado: $CONFIG_FILE"
@@ -41,6 +46,9 @@ jobs:
           echo "CONFIG_MT7921U=m" >> "$CONFIG_FILE"
           echo "CONFIG_MT76_USB=m" >> "$CONFIG_FILE"
           
+          # Exportar la ruta del archivo modificado
+          echo "CUSTOM_CONFIG_PATH=$(realpath "$CONFIG_FILE")" >> $GITHUB_ENV
+          
           # Limpiar llamadas a perfiles afdo en los Makefiles
           find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
 
@@ -52,35 +60,26 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           
-          sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld
+          mkdir -p out
           
-          # Ubicar el defconfig real y extraer su nombre
-          CONFIG_FILE=$(find . -name "*_defconfig" -o -name "defconfig" | grep -v "vendor" | grep -v "build" | head -n 1)
-          REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
+          # Copiar la configuracion personalizada como .config activo de salida
+          cp -f "$CUSTOM_CONFIG_PATH" out/.config
           
-          echo "Utilizando objetivo de configuracion: $REAL_DEFCONFIG"
+          # Procesar y validar las opciones de configuracion
+          make O=out ARCH=arm64 olddefconfig
           
-          # Asegurar copia en la ruta estándar de arquitectura para el compilador
-          mkdir -p arch/arm64/configs/
-          if [ -f "$CONFIG_FILE" ]; then
-            cp -f "$CONFIG_FILE" arch/arm64/configs/
-          fi
-          
-          # Cargar la configuración usando el nombre base del defconfig
-          make O=out ARCH=arm64 "$REAL_DEFCONFIG"
-          
-          # Compilar el kernel en paralelo usando clang
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang
+          # Compilar la imagen del kernel
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang Image || make -j$(nproc --all) O=out ARCH=arm64 CC=clang
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
           cd "$GITHUB_WORKSPACE"
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
-          # Buscar la imagen compilada
-          IMAGE_PATH=$(find out/ -name "Image*" 2>/dev/null | head -n 1)
+          # Buscar la imagen compilada del kernel
+          IMAGE_PATH=$(find out/ -name "Image*" -type f 2>/dev/null | grep -v "stub" | head -n 1)
           if [ -z "$IMAGE_PATH" ]; then
-            IMAGE_PATH=$(find . \( -name "Image" -o -name "Image.gz" -o -name "Image.gz-dtb" \) | head -n 1)
+            IMAGE_PATH=$(find . -name "Image*" -type f 2>/dev/null | grep -v "stub" | head -n 1)
           fi
           
           if [ -z "$IMAGE_PATH" ]; then
@@ -88,6 +87,7 @@ jobs:
             exit 1
           fi
           
+          echo "Imagen encontrada en: $IMAGE_PATH"
           cp "$IMAGE_PATH" AK3/Image
           
           cd AK3
@@ -97,10 +97,7 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           sed -i 's/device.name4=.*/device.name4=SM-A055/g' anykernel.sh
-          
-          # Usar la ruta universal de particiones by-name para la partición boot
           sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
-          
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
 
