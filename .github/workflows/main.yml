@@ -17,7 +17,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld python3 rsync git wget
 
-      - name: Inyectar controladores y compilar usando el script oficial
+      - name: Inyectar controladores y compilar directamente
         run: |
           cd "$GITHUB_WORKSPACE"
           
@@ -46,27 +46,23 @@ jobs:
           # Limpiar llamadas a perfiles afdo en los Makefiles
           find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
           
-          # Buscar si el repositorio incluye un script de compilacion automatizado (build.sh)
-          BUILD_SCRIPT=$(find . -maxdepth 3 -name "build.sh" | head -n 1)
+          # Configurar entorno de compilacion ARM64 con Clang
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="/usr/lib/llvm-18/bin:$PATH"
           
-          if [ -n "$BUILD_SCRIPT" ]; then
-            echo "Ejecutando script de compilacion oficial: $BUILD_SCRIPT"
-            # Configurar variables de entorno estandar para GKI build.sh
-            export ARCH=arm64
-            export SUBARCH=arm64
-            export CLANG_TRIPLE=aarch64-linux-gnu-
-            export CROSS_COMPILE=aarch64-linux-gnu-
-            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            
-            # Ejecutar el script oficial del kernel
-            bash "$BUILD_SCRIPT"
-          else
-            echo "No se encontro script build.sh, utilizando compilacion directa de respaldo..."
-            export ARCH=arm64
-            export SUBARCH=arm64
-            mkdir -p out
-            make -j$(nproc --all) O=out ARCH=arm64 CC=clang Image
-          fi
+          mkdir -p out
+          
+          # Extraer el nombre base del defconfig encontrado
+          REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
+          
+          # Copiar el defconfig a la ruta global de arquitecturas para asegurar lectura limpia
+          mkdir -p arch/arm64/configs
+          cp -f "$CONFIG_FILE" arch/arm64/configs/$REAL_DEFCONFIG
+          
+          # Generar la configuracion y compilar el kernel directamente
+          make O=out ARCH=arm64 CC=clang LD=ld.lld $REAL_DEFCONFIG
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
