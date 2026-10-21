@@ -19,8 +19,17 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entrar a la carpeta interna del kernel correcta
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          # Mostrar estructura y localizar automáticamente la carpeta del kernel
+          echo "Contenido del directorio actual:"
+          ls -la
+          
+          KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" | grep -E "kernel|a05" | head -n 1 | xargs dirname)
+          if [ -z "$KERNEL_DIR" ]; then
+            KERNEL_DIR="."
+          fi
+          
+          echo "Entrando a la carpeta del kernel: $KERNEL_DIR"
+          cd "$KERNEL_DIR"
           
           # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
           rm -rf drivers/kernelsu || true
@@ -33,7 +42,8 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Forzar el defconfig correcto del A05 si existe, o buscar el de vendor
+          # Forzar el defconfig correcto del A05 de forma segura
+          DEFCONFIG=""
           if [ -f "arch/arm64/configs/a05m_defconfig" ]; then
             DEFCONFIG="a05m_defconfig"
           elif [ -f "arch/arm64/configs/a05_defconfig" ]; then
@@ -41,8 +51,10 @@ jobs:
           elif [ -f "arch/arm64/configs/vendor/a05m_defconfig" ]; then
             DEFCONFIG="vendor/a05m_defconfig"
           else
-            DEFCONFIG=$(find arch/arm64/configs/ -name "*a05*.config" -o -name "*a05*defconfig" | head -n 1 | xargs basename)
-            if [ -z "$DEFCONFIG" ]; then
+            FOUND_DEF=$(find arch/arm64/configs/ -name "*a05*.config" -o -name "*a05*defconfig" | head -n 1)
+            if [ -n "$FOUND_DEF" ]; then
+              DEFCONFIG=$(basename "$FOUND_DEF")
+            else
               DEFCONFIG="gki_defconfig"
             fi
           fi
@@ -76,7 +88,13 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          # Usamos la misma lógica para posicionarnos en la carpeta correcta
+          KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" | grep -E "kernel|a05" | head -n 1 | xargs dirname)
+          if [ -z "$KERNEL_DIR" ]; then
+            KERNEL_DIR="."
+          fi
+          cd "$KERNEL_DIR"
+          
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
@@ -101,7 +119,6 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          # CORRECCIÓN CLAVE: Sobrescribir la ruta del bloque para evitar el error OMAP y apuntar a by-name/boot
           sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
