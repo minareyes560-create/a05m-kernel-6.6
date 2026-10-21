@@ -52,6 +52,7 @@ jobs:
       - name: Compilar el Kernel
         run: |
           cd "$GITHUB_WORKSPACE"
+          set -x # Activar modo depuracion para ver el error exacto en consola
           
           export ARCH=arm64
           export SUBARCH=arm64
