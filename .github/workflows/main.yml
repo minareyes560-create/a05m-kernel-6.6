@@ -16,11 +16,11 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Buscar a05m_defconfig o gki_defconfig en todo el proyecto
+          # Buscar a05m_defconfig o cualquier defconfig en el repositorio
           CONFIG_FILE=$(find . -type f -name "a05m_defconfig" | head -n 1)
           
           if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find . -type f -name "gki_defconfig" | head -n 1)
+            CONFIG_FILE=$(find . -type f -name "defconfig" | head -n 1)
           fi
           
           if [ -z "$CONFIG_FILE" ]; then
@@ -58,18 +58,22 @@ jobs:
           
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev clang lld
           
-          # Cargar la configuración base GKI nativa del Makefile principal
-          echo "Utilizando objetivo de configuracion base: gki_defconfig"
-          make O=out ARCH=arm64 gki_defconfig
-          
-          # Inyectar los cambios personalizados (antena Panda y AFDO) directamente al archivo .config generado
-          if [ -f "$CONFIG_FILE" ]; then
-            echo "Inyectando configuraciones desde: $CONFIG_FILE"
-            cat "$CONFIG_FILE" >> out/.config
+          # Ubicar el defconfig del repositorio
+          CONFIG_FILE=$(find . -type f -name "a05m_defconfig" -o -name "defconfig" | head -n 1)
+          if [ -z "$CONFIG_FILE" ]; then
+            CONFIG_FILE=$(find . -path "*/arch/arm64/configs/*" \( -name "*defconfig" -o -name "*.config" \) | head -n 1)
           fi
           
-          # Actualizar y validar la configuración combinada del kernel
-          make O=out ARCH=arm64 olddefconfig
+          echo "Utilizando configuracion localizada en: $CONFIG_FILE"
+          
+          # Asegurar copia en arch/arm64/configs/defconfig para el Makefile estándar
+          mkdir -p arch/arm64/configs/
+          if [ -f "$CONFIG_FILE" ] && [ "$CONFIG_FILE" != "./arch/arm64/configs/defconfig" ]; then
+            cp -f "$CONFIG_FILE" arch/arm64/configs/defconfig
+          fi
+          
+          # Cargar la configuración usando el objetivo universal 'defconfig'
+          make O=out ARCH=arm64 defconfig
           
           # Compilar el kernel en paralelo usando clang
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang
