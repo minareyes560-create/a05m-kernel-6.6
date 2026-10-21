@@ -25,7 +25,7 @@ jobs:
           # Asegurar que exista la carpeta de configs estándar de arm64
           mkdir -p arch/arm64/configs
           
-          # Copiar y renombrar el defconfig a la ruta exacta donde make lo busca obligatoriamente
+          # Copiar el defconfig a la ruta estándar de arm64
           cp "$CONFIG_FILE" arch/arm64/configs/a05_defconfig
           
           DEFCONFIG_PATH="arch/arm64/configs/a05_defconfig"
@@ -59,9 +59,13 @@ jobs:
           # Instalar herramientas necesarias en el runner de GitHub
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses5-dev
           
-          # Ejecutar make utilizando el objetivo estándar preparado
-          make O=out a05_defconfig
-          make -j$(nproc --all) O=out ARCH=arm64
+          # Detectar el nombre base real del defconfig dentro de la carpeta estándar
+          REAL_DEFCONFIG=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
+          echo "Utilizando objetivo de configuracion: $REAL_DEFCONFIG"
+          
+          # Generar la configuracion y compilar usando Clang
+          make O=out "$REAL_DEFCONFIG"
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
