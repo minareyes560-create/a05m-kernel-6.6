@@ -19,17 +19,17 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entrar directo a la ruta real confirmada en tus capturas
-          cd a05m-kernel-6.6/kernel-6.6
+          # Entramos directo a kernel-6.6 (ya estamos en la raíz del repo)
+          cd kernel-6.6
           
           echo "Directorio actual de trabajo:"
           pwd
           
-          # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
+          # LIMPIEZA RADICAL DE KERNELSU para evitar conflictos de Kconfig
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          # Anulación completa de AFDO / AutoFDO / Propeller
+          # Desactivación total de AFDO / AutoFDO / Propeller
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_PROPELLER_CLANG=y/CONFIG_PROPELLER_CLANG=n/g' || true
@@ -37,7 +37,7 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Usar gki_defconfig ya que es el archivo base disponible en arch/arm64/configs/
+          # Usar gki_defconfig (verificado en arch/arm64/configs)
           DEFCONFIG="gki_defconfig"
           echo "Usando defconfig: $DEFCONFIG"
           
@@ -69,7 +69,7 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          cd a05m-kernel-6.6/kernel-6.6
+          cd kernel-6.6
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
