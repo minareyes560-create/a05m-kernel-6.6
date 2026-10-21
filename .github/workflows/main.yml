@@ -63,15 +63,14 @@ jobs:
           
           echo "Utilizando objetivo de configuracion original: $REAL_DEFCONFIG"
           
-          # Si el archivo tiene extensión .defconfig, generamos el make con su nombre base o ruta relativa
           if [[ "$REAL_DEFCONFIG" == *.defconfig ]]; then
             TARGET_NAME="${REAL_DEFCONFIG%.defconfig}"
           else
             TARGET_NAME="${REAL_DEFCONFIG%.config}"
           fi
           
-          # Generar la configuracion y compilar
-          make O=out ARCH=arm64 "$TARGET_NAME" || make O=out ARCH=arm64 "$REAL_DEFCONFIG"
+          # Generar la configuracion y compilar con estrategia de respaldo en cascada
+          make O=out ARCH=arm64 "$REAL_DEFCONFIG" || make O=out ARCH=arm64 "$TARGET_NAME" || make O=out ARCH=arm64 defconfig
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang
 
       - name: Empaquetar con AnyKernel3 para TWRP
