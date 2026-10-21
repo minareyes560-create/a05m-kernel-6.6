@@ -19,7 +19,6 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entramos directo a kernel-6.6 (ya estamos en la raíz del repo)
           cd kernel-6.6
           
           echo "Directorio actual de trabajo:"
@@ -94,7 +93,9 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
+          # Ruta corregida para bloques bootdevice de MediaTek (Evita error OMAP)
+          sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
+          
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
           
