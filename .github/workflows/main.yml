@@ -44,14 +44,14 @@ jobs:
       - name: Compilar el Kernel
         run: |
           cd "$GITHUB_WORKSPACE"
-          set -x
+          set -e
           
           export ARCH=arm64
           export SUBARCH=arm64
           
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses5-dev
           
-          # Obtener el nombre base real del archivo de configuración original sin inventar nombres
+          # Obtener el nombre base real del archivo de configuración original
           CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
           if [ -z "$CONFIG_FILE" ]; then
             CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
