@@ -15,7 +15,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           
           # Localizar la ruta exacta del defconfig original en el repositorio
-          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
+          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|gki" | head -n 1)
           if [ -z "$CONFIG_FILE" ]; then
             CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
           fi
@@ -39,7 +39,7 @@ jobs:
           echo "CONFIG_MT76_USB=m" >> "$CONFIG_FILE"
           
           # Limpiar llamadas a perfiles afdo en los Makefiles
-          find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
+          find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/devnull || true
 
       - name: Compilar el Kernel
         run: |
@@ -49,19 +49,24 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           
-          sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses5-dev
+          sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses-dev
           
           # Obtener el nombre base real del archivo de configuración original
-          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
+          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|gki" | head -n 1)
           if [ -z "$CONFIG_FILE" ]; then
             CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
           fi
-          REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
+          
+          if [ -n "$CONFIG_FILE" ]; then
+            REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
+          else
+            REAL_DEFCONFIG="gki_defconfig"
+          fi
           
           echo "Utilizando objetivo de configuracion original: $REAL_DEFCONFIG"
           
-          # Generar la configuracion y compilar usando Clang
-          make O=out "$REAL_DEFCONFIG"
+          # Generar la configuracion y compilar
+          make O=out ARCH=arm64 "$REAL_DEFCONFIG"
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang
 
       - name: Empaquetar con AnyKernel3 para TWRP
@@ -70,7 +75,10 @@ jobs:
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
           # Buscar la imagen compilada (Image, Image.gz, Image.gz-dtb, etc.)
-          IMAGE_PATH=$(find . \( -name "Image" -o -name "Image.gz" -o -name "Image.gz-dtb" \) | head -n 1)
+          IMAGE_PATH=$(find out/ -name "Image*" 2>/dev/null | head -n 1)
+          if [ -z "$IMAGE_PATH" ]; then
+            IMAGE_PATH=$(find . \( -name "Image" -o -name "Image.gz" -o -name "Image.gz-dtb" \) | head -n 1)
+          fi
           
           if [ -z "$IMAGE_PATH" ]; then
             echo "Error: No se encontro ninguna imagen compilada del kernel."
@@ -87,8 +95,8 @@ jobs:
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           sed -i 's/device.name4=.*/device.name4=SM-A055/g' anykernel.sh
           
-          # Forzar la partición exacta mmcblk0p35 del Samsung A05
-          sed -i 's|block=.*;|block=/dev/block/mmcblk0p35;|g' anykernel.sh
+          # Usar la ruta universal de particiones by-name para la partición boot
+          sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
           
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
