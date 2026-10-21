@@ -19,47 +19,28 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Mostrar estructura y localizar automáticamente la carpeta del kernel
-          echo "Contenido del directorio actual:"
-          ls -la
+          # Entrar directo a la ruta real confirmada en tus capturas
+          cd a05m-kernel-6.6/kernel-6.6
           
-          KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" | grep -E "kernel|a05" | head -n 1 | xargs dirname)
-          if [ -z "$KERNEL_DIR" ]; then
-            KERNEL_DIR="."
-          fi
-          
-          echo "Entrando a la carpeta del kernel: $KERNEL_DIR"
-          cd "$KERNEL_DIR"
+          echo "Directorio actual de trabajo:"
+          pwd
           
           # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          # Anulación de AFDO
+          # Anulación completa de AFDO / AutoFDO / Propeller
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_PROPELLER_CLANG=y/CONFIG_PROPELLER_CLANG=n/g' || true
           
           make mrproper || true
           mkdir -p out
           
-          # Forzar el defconfig correcto del A05 de forma segura
-          DEFCONFIG=""
-          if [ -f "arch/arm64/configs/a05m_defconfig" ]; then
-            DEFCONFIG="a05m_defconfig"
-          elif [ -f "arch/arm64/configs/a05_defconfig" ]; then
-            DEFCONFIG="a05_defconfig"
-          elif [ -f "arch/arm64/configs/vendor/a05m_defconfig" ]; then
-            DEFCONFIG="vendor/a05m_defconfig"
-          else
-            FOUND_DEF=$(find arch/arm64/configs/ -name "*a05*.config" -o -name "*a05*defconfig" | head -n 1)
-            if [ -n "$FOUND_DEF" ]; then
-              DEFCONFIG=$(basename "$FOUND_DEF")
-            else
-              DEFCONFIG="gki_defconfig"
-            fi
-          fi
-          
+          # Usar gki_defconfig ya que es el archivo base disponible en arch/arm64/configs/
+          DEFCONFIG="gki_defconfig"
           echo "Usando defconfig: $DEFCONFIG"
+          
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
           {
@@ -88,13 +69,7 @@ jobs:
 
       - name: Compilar Imagen del Kernel
         run: |
-          # Usamos la misma lógica para posicionarnos en la carpeta correcta
-          KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" | grep -E "kernel|a05" | head -n 1 | xargs dirname)
-          if [ -z "$KERNEL_DIR" ]; then
-            KERNEL_DIR="."
-          fi
-          cd "$KERNEL_DIR"
-          
+          cd a05m-kernel-6.6/kernel-6.6
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Empaquetar con AnyKernel3 para TWRP
