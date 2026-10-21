@@ -14,7 +14,7 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Localizar el defconfig real en cualquier parte del repositorio
+          # Localizar la ruta exacta del defconfig original en el repositorio
           CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
           if [ -z "$CONFIG_FILE" ]; then
             CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
@@ -22,29 +22,21 @@ jobs:
           
           echo "Archivo de configuracion localizado: $CONFIG_FILE"
           
-          # Asegurar que exista la carpeta de configs estándar de arm64
-          mkdir -p arch/arm64/configs
-          
-          # Copiar el defconfig a la ruta estándar de arm64
-          cp "$CONFIG_FILE" arch/arm64/configs/a05_defconfig
-          
-          DEFCONFIG_PATH="arch/arm64/configs/a05_defconfig"
-          
-          # Desactivar AFDO
-          echo "CONFIG_AFDO_CLANG=n" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_AUTOFDO_CLANG=n" >> "$DEFCONFIG_PATH"
+          # Modificar directamente el archivo original en su ruta de origen
+          echo "CONFIG_AFDO_CLANG=n" >> "$CONFIG_FILE"
+          echo "CONFIG_AUTOFDO_CLANG=n" >> "$CONFIG_FILE"
           
           # Habilitar soporte inalambrico y controladores MT7921U / MT76 para la antena Panda
-          echo "CONFIG_NET=y" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_WIRELESS=y" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_MAC80211=y" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_USB_NET_DRIVERS=y" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_MT76_CORE=m" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_MT76_LEDS=y" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_MT7921_COMMON=m" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_MT7921U=m" >> "$DEFCONFIG_PATH"
-          echo "CONFIG_MT76_USB=m" >> "$DEFCONFIG_PATH"
+          echo "CONFIG_NET=y" >> "$CONFIG_FILE"
+          echo "CONFIG_WIRELESS=y" >> "$CONFIG_FILE"
+          echo "CONFIG_CFG80211=y" >> "$CONFIG_FILE"
+          echo "CONFIG_MAC80211=y" >> "$CONFIG_FILE"
+          echo "CONFIG_USB_NET_DRIVERS=y" >> "$CONFIG_FILE"
+          echo "CONFIG_MT76_CORE=m" >> "$CONFIG_FILE"
+          echo "CONFIG_MT76_LEDS=y" >> "$CONFIG_FILE"
+          echo "CONFIG_MT7921_COMMON=m" >> "$CONFIG_FILE"
+          echo "CONFIG_MT7921U=m" >> "$CONFIG_FILE"
+          echo "CONFIG_MT76_USB=m" >> "$CONFIG_FILE"
           
           # Limpiar llamadas a perfiles afdo en los Makefiles
           find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
@@ -52,17 +44,21 @@ jobs:
       - name: Compilar el Kernel
         run: |
           cd "$GITHUB_WORKSPACE"
-          set -x # Activar modo depuracion para ver el error exacto en consola
+          set -x
           
           export ARCH=arm64
           export SUBARCH=arm64
           
-          # Instalar herramientas necesarias en el runner de GitHub
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses5-dev
           
-          # Detectar el nombre base real del defconfig dentro de la carpeta estándar
-          REAL_DEFCONFIG=$(basename $(find arch/arm64/configs -name "*defconfig" | head -n 1))
-          echo "Utilizando objetivo de configuracion: $REAL_DEFCONFIG"
+          # Obtener el nombre base real del archivo de configuración original sin inventar nombres
+          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
+          if [ -z "$CONFIG_FILE" ]; then
+            CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
+          fi
+          REAL_DEFCONFIG=$(basename "$CONFIG_FILE")
+          
+          echo "Utilizando objetivo de configuracion original: $REAL_DEFCONFIG"
           
           # Generar la configuracion y compilar usando Clang
           make O=out "$REAL_DEFCONFIG"
@@ -91,8 +87,8 @@ jobs:
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           sed -i 's/device.name4=.*/device.name4=SM-A055/g' anykernel.sh
           
-          # Forzar ruta de partición boot para MediaTek de Samsung
-          sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
+          # Forzar la partición exacta mmcblk0p35 del Samsung A05
+          sed -i 's|block=.*;|block=/dev/block/mmcblk0p35;|g' anykernel.sh
           
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
