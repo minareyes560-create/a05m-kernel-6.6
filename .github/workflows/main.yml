@@ -10,22 +10,31 @@ jobs:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Configurar controladores MT7921U y desactivar AFDO
+      - name: Configurar controladores MT7921U, desactivar AFDO y preparar Defconfig
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          DEFCONFIG_PATH=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
-          if [ -z "$DEFCONFIG_PATH" ]; then
-            DEFCONFIG_PATH=$(find . -name "*defconfig" | head -n 1)
+          # Localizar el defconfig real en cualquier parte del repositorio
+          CONFIG_FILE=$(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1)
+          if [ -z "$CONFIG_FILE" ]; then
+            CONFIG_FILE=$(find . -name "*defconfig" | head -n 1)
           fi
           
-          echo "Archivo de configuracion localizado: $DEFCONFIG_PATH"
+          echo "Archivo de configuracion localizado: $CONFIG_FILE"
+          
+          # Asegurar que exista la carpeta de configs estándar de arm64
+          mkdir -p arch/arm64/configs
+          
+          # Copiar y renombrar el defconfig a la ruta exacta donde make lo busca obligatoriamente
+          cp "$CONFIG_FILE" arch/arm64/configs/a05_defconfig
+          
+          DEFCONFIG_PATH="arch/arm64/configs/a05_defconfig"
           
           # Desactivar AFDO
           echo "CONFIG_AFDO_CLANG=n" >> "$DEFCONFIG_PATH"
           echo "CONFIG_AUTOFDO_CLANG=n" >> "$DEFCONFIG_PATH"
           
-          # Soporte inalambrico mac80211 y MT7921U / MT76
+          # Habilitar soporte inalambrico y controladores MT7921U / MT76 para la antena Panda
           echo "CONFIG_NET=y" >> "$DEFCONFIG_PATH"
           echo "CONFIG_WIRELESS=y" >> "$DEFCONFIG_PATH"
           echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_PATH"
@@ -37,23 +46,22 @@ jobs:
           echo "CONFIG_MT7921U=m" >> "$DEFCONFIG_PATH"
           echo "CONFIG_MT76_USB=m" >> "$DEFCONFIG_PATH"
           
+          # Limpiar llamadas a perfiles afdo en los Makefiles
           find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-fprofile-sample-use=.*//g' 2>/dev/null || true
 
       - name: Compilar el Kernel
         run: |
           cd "$GITHUB_WORKSPACE"
           
-          # Detectar el archivo defconfig
-          DEFCONFIG_NAME=$(basename $(find . -name "*defconfig" | grep -E "a05|mt6769|exynos|universal" | head -n 1))
+          export ARCH=arm64
+          export SUBARCH=arm64
           
-          # Si tienes un script de build propio en la raíz (ej: build.sh), ejecútalo.
-          if [ -f "build.sh" ]; then
-            bash build.sh
-          else
-            # Compilacion estandar con make
-            make ARCH=arm64 $DEFCONFIG_NAME
-            make -j$(nproc --all) ARCH=arm64 O=out
-          fi
+          # Instalar herramientas necesarias en el runner de GitHub
+          sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make libc6-dev libncurses5-dev
+          
+          # Ejecutar make utilizando el objetivo estándar preparado
+          make O=out a05_defconfig
+          make -j$(nproc --all) O=out ARCH=arm64
 
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
@@ -72,12 +80,15 @@ jobs:
           
           cd AK3
           
-          # Configurar AnyKernel3 para SM-A055M
+          # Configurar propiedades del dispositivo para TWRP
           sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           sed -i 's/device.name4=.*/device.name4=SM-A055/g' anykernel.sh
+          
+          # Forzar ruta de partición boot para MediaTek de Samsung
           sed -i 's|block=.*;|block=/dev/block/platform/bootdevice/by-name/boot;|g' anykernel.sh
+          
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
 
