@@ -9,23 +9,6 @@ jobs:
     steps:
       - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
-
-      - name: Configurar controladores MT7921U, desactivar AFDOAquí tienes el código YAML completo, estructurado y listo para copiar directamente a tu archivo `.github/workflows/build.yml`.
-
-Incluye los ajustes necesarios para clonar submódulos, localizar automáticamente `a05m_defconfig` (o `gki_defconfig`), preparar las flags de red/MT76 para tu antena Panda y compilar sin errores de rutas ni objetivos:
-
-```yaml
-name: Compilar Kernel Samsung A05 - Modo Monitor Nativomt76
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clonar repositorio del Kernel
-        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -100,7 +83,7 @@ jobs:
       - name: Empaquetar con AnyKernel3 para TWRP
         run: |
           cd "$GITHUB_WORKSPACE"
-          git clone [https://github.com/osm0sis/AnyKernel3.git](https://github.com/osm0sis/AnyKernel3.git) AK3
+          git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
           # Buscar la imagen compilada
           IMAGE_PATH=$(find out/ -name "Image*" 2>/dev/null | head -n 1)
