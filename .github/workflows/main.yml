@@ -87,8 +87,12 @@ jobs:
           
           cp "$IMAGE_PATH" AK3/Image
           
+          # Sobrescribir obligatoriamente el anykernel.sh con tu versión limpia creada en la raíz
           if [ -f "anykernel.sh" ]; then
-            cp anykernel.sh AK3/anykernel.sh
+            cp -f anykernel.sh AK3/anykernel.sh
+            echo "¡anykernel.sh personalizado copiado con éxito a AnyKernel3!"
+          else
+            echo "Advertencia: No se encontró anykernel.sh personalizado en la raíz."
           fi
           
           cd AK3
@@ -104,8 +108,8 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          # Ruta exacta y directa de bloques en MAYÚSCULAS para Samsung MediaTek
-          sed -i 's|BLOCK=.*;|BLOCK=auto;|g' anykernel.sh
+          # Asegurar ruta directa a la partición boot de MediaTek
+          sed -i 's|BLOCK=.*;|BLOCK=/dev/block/by-name/boot;|g' anykernel.sh
           sed -i 's/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=0/g' anykernel.sh
           sed -i 's/RAMDISK_COMPRESSION=.*/RAMDISK_COMPRESSION=auto/g' anykernel.sh
           
