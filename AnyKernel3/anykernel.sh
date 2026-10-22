@@ -4,7 +4,7 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=Kernel Custom A05 - Panda Monitor Mode
+kernel.string=Kernel Custom A05 - Panda MonitorMode
 do.devicecheck=1
 do.modules=0
 do.systemless=1
@@ -21,17 +21,24 @@ supported.vendorpatchlevels=
 '; } # end properties
 
 ### AnyKernel install
-# boot shell variables
-block=auto;
-is_slot_device=0;
-ramdisk_compression=auto;
-patch_vbmeta_flag=auto;
+## boot attributes
+boot_attributes() {
+set_perm_recursive 0 0 755 644 $RAMDISK/*;
+set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
+} # end attributes
 
-# import functions/variables and setup patching - see for reference (DO NOT REMOVE)
+# boot shell variables
+BLOCK=/dev/block/by-name/boot;
+IS_SLOT_DEVICE=0;
+RAMDISK_COMPRESSION=auto;
+PATCH_VBMETA_FLAG=auto;
+
+# import functions/variables and setup patching - see for reference
 . tools/ak3-core.sh;
 
 # boot install
-split_boot;
+dump_boot;
 
-flash_boot;
+# write boot image
+write_boot;
 ## end boot install
