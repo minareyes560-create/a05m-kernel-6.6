@@ -1,45 +1,36 @@
-### AnyKernel3 Ramdisk Mod Script
-## osm0sis @ xda-developers
-
-### AnyKernel setup
-# global properties
-properties() { '
-kernel.string=Samsung A05 Custom Kernel 6.6 (Theman-Fromfar)
-do.devicecheck=0
-do.modules=1
-do.systemless=0
-do.cleanup=1
-do.cleanuponabort=0
-device.name1=a05
-device.name2=a05m
-device.name3=SM-A055M
-device.name4=
-device.name5=
-supported.versions=
-supported.patchlevels=
-supported.vendorpatchlevels=
-'; } # end properties
-
-
-### AnyKernel install
-## boot shell variables
-block=/dev/block/by-name/boot;
-is_slot_device=0;
-ramdisk_compression=auto;
-patch_vbmeta_flag=auto;
-no_magisk_check=1
-
-# import functions/variables and setup patching - see for reference (DO NOT REMOVE)
-. tools/ak3-core.sh
-
-ui_print " " "  -> Flashing custom kernel for Samsung A05"
-
-# boot install
-split_boot
-if [ -f "split_img/ramdisk.cpio" ]; then
-    unpack_ramdisk
-    write_boot
-else
-    flash_boot
-fi
-## end boot install
+- name: Empaquetar con AnyKernel3 para TWRP
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git AK3
+          
+          IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
+          
+          if [ -z "$IMAGE_PATH" ]; then
+            IMAGE_PATH=$(find out/ -name "Image" | head -n 1)
+          fi
+          
+          if [ -z "$IMAGE_PATH" ]; then
+            echo "Error: No se encontró la imagen compilada."
+            exit 1
+          fi
+          
+          cp "$IMAGE_PATH" AK3/
+          
+          cd AK3
+          
+          # Forzar propiedades de compatibilidad para evitar bloqueos en TWRP
+          sed -i 's/do.devicecheck=.*/do.devicecheck=0/g' anykernel.sh
+          sed -i 's/do.modules=.*/do.modules=1/g' anykernel.sh
+          sed -i 's/do.systemless=.*/do.systemless=0/g' anykernel.sh
+          sed -i 's/do.cleanup=.*/do.cleanup=1/g' anykernel.sh
+          
+          # Definir nombres aceptados
+          sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
+          sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
+          sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
+          
+          # Corrección crítica de la ruta del bloque para Samsung/MediaTek
+          sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
+          sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
+          sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
+          
+          zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
