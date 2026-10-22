@@ -4,7 +4,7 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=Kernel Custom A05 - Panda Monitor Mode by osm0sis @ xda-developers
+kernel.string=Kernel Custom A05 - Panda Monitor Mode
 do.devicecheck=1
 do.modules=0
 do.systemless=1
