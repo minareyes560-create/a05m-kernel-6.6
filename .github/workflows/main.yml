@@ -87,9 +87,14 @@ jobs:
           
           cp "$IMAGE_PATH" AK3/Image
           
+          # Si tienes un anykernel.sh personalizado en la raíz, cópialo; si no, el clonado mantendrá el base limpio
+          if [ -f "anykernel.sh" ]; then
+            cp anykernel.sh AK3/anykernel.sh
+          fi
+          
           cd AK3
           
-          # Forzar parámetros de compatibilidad para evitar bloqueos en TWRP
+          # Forzar parámetros de compatibilidad por seguridad
           sed -i 's/do.devicecheck=.*/do.devicecheck=0/g' anykernel.sh
           sed -i 's/do.modules=.*/do.modules=0/g' anykernel.sh
           sed -i 's/do.systemless=.*/do.systemless=1/g' anykernel.sh
@@ -101,7 +106,7 @@ jobs:
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
           # Ruta exacta y directa de bloques para Samsung MediaTek
-          sed -i 's|block=.*;|block=/dev/block/by-name/boot;|g' anykernel.sh
+          sed -i 's|block=.*;|block=auto;|g' anykernel.sh
           sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
           sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
           sed -i 's/patch_cmdline=.*/patch_cmdline=""/g' anykernel.sh
