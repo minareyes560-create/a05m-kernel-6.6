@@ -87,7 +87,6 @@ jobs:
           
           cp "$IMAGE_PATH" AK3/Image
           
-          # Si tienes un anykernel.sh personalizado en la raíz, cópialo; si no, el clonado mantendrá el base limpio
           if [ -f "anykernel.sh" ]; then
             cp anykernel.sh AK3/anykernel.sh
           fi
@@ -105,11 +104,10 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
           
-          # Ruta exacta y directa de bloques para Samsung MediaTek
-          sed -i 's|block=.*;|block=auto;|g' anykernel.sh
-          sed -i 's/is_slot_device=.*/is_slot_device=0/g' anykernel.sh
-          sed -i 's/ramdisk_compression=.*/ramdisk_compression=auto/g' anykernel.sh
-          sed -i 's/patch_cmdline=.*/patch_cmdline=""/g' anykernel.sh
+          # Ruta exacta y directa de bloques en MAYÚSCULAS para Samsung MediaTek
+          sed -i 's|BLOCK=.*;|BLOCK=auto;|g' anykernel.sh
+          sed -i 's/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=0/g' anykernel.sh
+          sed -i 's/RAMDISK_COMPRESSION=.*/RAMDISK_COMPRESSION=auto/g' anykernel.sh
           
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
 
