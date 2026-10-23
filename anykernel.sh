@@ -6,7 +6,7 @@
 properties() { '
 kernel.string=Kernel Custom A05 - Panda MonitorMode
 do.devicecheck=1
-do.modules=0
+do.modules=1
 do.systemless=1
 do.cleanup=1
 do.cleanuponabort=0
@@ -20,25 +20,15 @@ supported.patchlevels=
 supported.vendorpatchlevels=
 '; } # end properties
 
-### AnyKernel install
-## boot attributes
-boot_attributes() {
-set_perm_recursive 0 0 755 644 $RAMDISK/*;
-set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
-} # end attributes
-
 # boot shell variables
 BLOCK=/dev/block/by-name/boot;
 IS_SLOT_DEVICE=0;
 RAMDISK_COMPRESSION=auto;
 PATCH_VBMETA_FLAG=auto;
 
-# import functions/variables and setup patching - see for reference
+# import functions/variables and setup patching
 . tools/ak3-core.sh;
 
-# boot install
-dump_boot;
-
-# write boot image
+# flasheo directo de la imagen
 write_boot;
 ## end boot install
