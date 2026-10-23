@@ -71,7 +71,7 @@ jobs:
           cd kernel-6.6
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
-      - name: Empaquetar con AnyKernel3 para TWRP (Corregido SM-A055M)
+      - name: Empaquetar con AnyKernel3 para TWRP (SM-A055M)
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git AK3
           
@@ -87,32 +87,16 @@ jobs:
           
           cp "$IMAGE_PATH" AK3/Image
           
-          # Sobrescribir obligatoriamente el anykernel.sh con tu versión limpia creada en la raíz
+          # Copiar tal cual tu anykernel.sh personalizado desde la raíz sin alteraciones
           if [ -f "anykernel.sh" ]; then
             cp -f anykernel.sh AK3/anykernel.sh
-            echo "¡anykernel.sh personalizado copiado con éxito a AnyKernel3!"
+            echo "¡anykernel.sh copiado exactamente como lo diseñaste!"
           else
-            echo "Advertencia: No se encontró anykernel.sh personalizado en la raíz."
+            echo "Error: No se encontró anykernel.sh en la raíz del repositorio."
+            exit 1
           fi
           
           cd AK3
-          
-          # Forzar parámetros de compatibilidad por seguridad
-          sed -i 's/do.devicecheck=.*/do.devicecheck=0/g' anykernel.sh
-          sed -i 's/do.modules=.*/do.modules=0/g' anykernel.sh
-          sed -i 's/do.systemless=.*/do.systemless=1/g' anykernel.sh
-          sed -i 's/do.cleanup=.*/do.cleanup=1/g' anykernel.sh
-          
-          # Nombres de dispositivos aceptados
-          sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
-          sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
-          sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
-          
-          # Asegurar ruta directa a la partición boot de MediaTek
-          sed -i 's|BLOCK=.*;|BLOCK=/dev/block/by-name/boot;|g' anykernel.sh
-          sed -i 's/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=0/g' anykernel.sh
-          sed -i 's/RAMDISK_COMPRESSION=.*/RAMDISK_COMPRESSION=auto/g' anykernel.sh
-          
           zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
 
       - name: Subir ZIP Flasheable como Artefacto
