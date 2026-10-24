@@ -31,14 +31,8 @@ no_magisk_check=1;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh
 
-ui_print " " "  -> Flashing custom kernel for Galaxy A05 (MT7921U)"
+ui_print " " "  -> Flashing custom kernel directly for Galaxy A05"
 
-# boot install
-split_boot
-if [ -f "split_img/ramdisk.cpio" ]; then
-    unpack_ramdisk
-    write_boot
-else
-    flash_boot
-fi
+# Flasheo directo para evitar errores de empaquetado en procesadores MediaTek
+write_boot
 ## end boot install
