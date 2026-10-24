@@ -1,0 +1,75 @@
+name: Build Custom Kernel A05M (MT7921U Monitor Mode)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip
+
+      - name: Locate and Inject MT7921U & Monitor Mode Configs
+        run: |
+          # Buscar el archivo defconfig dentro del repositorio
+          DEFCONFIG_FILE=$(find . -name "*defconfig*" | head -n 1)
+          echo "Configuring file: $DEFCONFIG_FILE"
+          
+          if [ -z "$DEFCONFIG_FILE" ]; then
+            echo "Error: No se encontró ningún archivo defconfig."
+            exit 1
+          fi
+
+          # Añadir bloques de configuración para red, wireless y modo monitor
+          echo "CONFIG_NETDEVICES=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_WLAN=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_CFG80211_WEXT=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211_HAS_RC=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> "$DEFCONFIG_FILE"
+          
+          # Controladores MediaTek MT76 y MT7921U (Panda AXE3000)
+          echo "CONFIG_MT76_CORE=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT76_LEDS=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT76_USB=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT76_CONNAC_LIB=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT7921_COMMON=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT7921U=y" >> "$DEFCONFIG_FILE"
+          
+          # Soporte USB OTG e Inyección de Paquetes
+          echo "CONFIG_USB_SUPPORT=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_USB=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_USB_NET_DRIVERS=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_PACKET=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_NET_RAW=y" >> "$DEFCONFIG_FILE"
+
+      - name: Download MT7921U Firmware Binaries
+        run: |
+          mkdir -p firmware/mediatek
+          wget -P firmware/mediatek/ https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin
+          wget -P firmware/mediatek/ https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin
+
+      - name: Package AnyKernel3 Zip
+        run: |
+          if [ -d "AnyKernel3" ]; then
+            cd AnyKernel3
+            zip -r9 ../A05M-Kernel-MT7921U.zip *
+          else
+            echo "Empaquetando directorio raíz..."
+            zip -r9 A05M-Kernel-MT7921U.zip . -x "*.git*"
+          fi
+
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: A05M-Kernel-MT7921U
+          path: A05M-Kernel-MT7921U.zip
