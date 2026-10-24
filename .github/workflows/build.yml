@@ -18,7 +18,7 @@ jobs:
 
       - name: Locate and Inject MT7921U & Monitor Mode Configs
         run: |
-          DEFCONFIG_FILE=$(find . -name "*defconfig*" | head -n 1)
+          DEFCONFIG_FILE=$(find . -name "*defconfig*" | grep -v "kunit" | head -n 1)
           echo "Configuring file: $DEFCONFIG_FILE"
           
           if [ -z "$DEFCONFIG_FILE" ]; then
@@ -62,12 +62,17 @@ jobs:
           
           cd kernel-6.6 || cd kernel || true
           
-          # Limpiar cualquier referencia rota a KernelSU en los drivers
           if [ -f "drivers/Kconfig" ]; then
             sed -i '/kernelsu/d' drivers/Kconfig || true
           fi
           
-          DEFCONFIG_NAME=$(basename $(find . -name "*defconfig*" | head -n 1))
+          DEFCONFIG_NAME=$(find arch/arm64/configs -name "*a05*" -o -name "*defconfig*" | grep -v "kunit" | head -n 1 | xargs basename)
+          
+          if [ -z "$DEFCONFIG_NAME" ]; then
+            DEFCONFIG_NAME="a05m_defconfig"
+          fi
+          
+          echo "Usando defconfig: $DEFCONFIG_NAME"
           
           echo "Generando configuraciones en $(pwd)..."
           make O=out $DEFCONFIG_NAME
