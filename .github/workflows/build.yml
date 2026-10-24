@@ -18,7 +18,6 @@ jobs:
 
       - name: Locate and Inject MT7921U & Monitor Mode Configs
         run: |
-          # Buscar el archivo defconfig dentro del repositorio
           DEFCONFIG_FILE=$(find . -name "*defconfig*" | head -n 1)
           echo "Configuring file: $DEFCONFIG_FILE"
           
@@ -27,7 +26,6 @@ jobs:
             exit 1
           fi
 
-          # Añadir bloques de configuración para red, wireless y modo monitor
           echo "CONFIG_NETDEVICES=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_WLAN=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_FILE"
@@ -37,7 +35,6 @@ jobs:
           echo "CONFIG_MAC80211_RC_MINSTREL=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> "$DEFCONFIG_FILE"
           
-          # Controladores MediaTek MT76 y MT7921U (Panda AXE3000)
           echo "CONFIG_MT76_CORE=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_MT76_LEDS=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_MT76_USB=y" >> "$DEFCONFIG_FILE"
@@ -45,7 +42,6 @@ jobs:
           echo "CONFIG_MT7921_COMMON=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_MT7921U=y" >> "$DEFCONFIG_FILE"
           
-          # Soporte USB OTG e Inyección de Paquetes
           echo "CONFIG_USB_SUPPORT=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_USB=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_USB_NET_DRIVERS=y" >> "$DEFCONFIG_FILE"
@@ -55,8 +51,8 @@ jobs:
       - name: Download MT7921U Firmware Binaries
         run: |
           mkdir -p firmware/mediatek
-          wget -P firmware/mediatek/ https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin
-          wget -P firmware/mediatek/ https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin
+          wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://raw.githubusercontent.com/kholk/android_vendor_qcom_msm8998/master/proprietary/vendor/firmware/WIFI_RAM_CODE_MT7921_1_1.bin" || wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin" || true
+          wget -O firmware/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin" || true
 
       - name: Package AnyKernel3 Zip
         run: |
