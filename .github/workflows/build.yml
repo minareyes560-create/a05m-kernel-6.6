@@ -67,7 +67,8 @@ jobs:
             sed -i '/kernelsu/d' drivers/Kconfig || true
           fi
           
-          DEFCONFIG_NAME=$(find arch/arm64/configs -name "*a05*" -o -name "*defconfig*" | grep -v "kunit" | head -n 1 | xargs basename)
+          # Buscar el defconfig correctamente dentro de la ruta de la estructura mostrada
+          DEFCONFIG_NAME=$(find arch/arm64 -name "*defconfig*" -o -name "*_defconfig*" | grep -v "kunit" | head -n 1 | xargs basename)
           
           if [ -z "$DEFCONFIG_NAME" ]; then
             DEFCONFIG_NAME="a05m_defconfig"
@@ -77,7 +78,7 @@ jobs:
           
           mkdir -p out
           make O=out CC=aarch64-linux-gnu-gcc $DEFCONFIG_NAME
-          make O=out CC=aarch64-linux-gnu-gcc -j$(nproc)
+          make O=out CC=aarch64-linux-gnu-gcc Image -j$(nproc)
 
       - name: Prepare Boot Image for Eros Tool
         run: |
