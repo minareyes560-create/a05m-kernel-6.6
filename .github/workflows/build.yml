@@ -62,6 +62,11 @@ jobs:
           
           cd kernel-6.6 || cd kernel || true
           
+          # Limpiar cualquier referencia rota a KernelSU en los drivers
+          if [ -f "drivers/Kconfig" ]; then
+            sed -i '/kernelsu/d' drivers/Kconfig || true
+          fi
+          
           DEFCONFIG_NAME=$(basename $(find . -name "*defconfig*" | head -n 1))
           
           echo "Generando configuraciones en $(pwd)..."
