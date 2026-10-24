@@ -14,11 +14,10 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip python3
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip python3 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Locate and Inject MT7921U & Monitor Mode Configs
         run: |
-          # Buscar el defconfig dentro de las carpetas del kernel
           DEFCONFIG_FILE=$(find . -name "*defconfig*" | head -n 1)
           echo "Configuring file: $DEFCONFIG_FILE"
           
@@ -61,7 +60,6 @@ jobs:
           export SUBARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Entrar a la carpeta correcta del código fuente del kernel
           cd kernel-6.6 || cd kernel || true
           
           DEFCONFIG_NAME=$(basename $(find . -name "*defconfig*" | head -n 1))
@@ -74,7 +72,6 @@ jobs:
 
       - name: Prepare Boot Image for Eros Tool
         run: |
-          # Buscar la imagen compilada dentro de la carpeta del kernel o en la raíz
           if [ -f "kernel-6.6/out/arch/arm64/boot/Image" ]; then
             cp kernel-6.6/out/arch/arm64/boot/Image boot.img
           elif [ -f "kernel/out/arch/arm64/boot/Image" ]; then
