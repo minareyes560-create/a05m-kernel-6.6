@@ -59,6 +59,7 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC=aarch64-linux-gnu-gcc
           
           cd kernel-6.6 || cd kernel || true
           
@@ -74,11 +75,9 @@ jobs:
           
           echo "Usando defconfig: $DEFCONFIG_NAME"
           
-          echo "Generando configuraciones en $(pwd)..."
-          make O=out $DEFCONFIG_NAME
-          
-          echo "Iniciando compilación del kernel..."
-          make O=out -j$(nproc)
+          mkdir -p out
+          make O=out CC=aarch64-linux-gnu-gcc $DEFCONFIG_NAME
+          make O=out CC=aarch64-linux-gnu-gcc -j$(nproc)
 
       - name: Prepare Boot Image for Eros Tool
         run: |
