@@ -14,7 +14,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip python3
 
       - name: Locate and Inject MT7921U & Monitor Mode Configs
         run: |
@@ -53,6 +53,20 @@ jobs:
           mkdir -p firmware/mediatek
           wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://raw.githubusercontent.com/kholk/android_vendor_qcom_msm8998/master/proprietary/vendor/firmware/WIFI_RAM_CODE_MT7921_1_1.bin" || wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin" || true
           wget -O firmware/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin" || true
+
+      - name: Compile Kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          
+          DEFCONFIG_NAME=$(basename $(find . -name "*defconfig*" | head -n 1))
+          
+          echo "Generando configuraciones..."
+          make O=out $DEFCONFIG_NAME
+          
+          echo "Iniciando compilación del kernel..."
+          make O=out -j$(nproc)
 
       - name: Prepare Boot Image for Eros Tool
         run: |
