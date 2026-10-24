@@ -1,4 +1,4 @@
-name: Build Custom Kernel A05M (MT7921U Monitor Mode)
+name: Compilar Kernel Samsung A05 - Modo Monitor Nativomt76
 
 on:
   workflow_dispatch:
@@ -6,102 +6,103 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
+      - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Install Build Dependencies
+      - name: Instalación de dependencias y Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip python3 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
-      - name: Locate and Inject MT7921U & Monitor Mode Configs
+      - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          DEFCONFIG_FILE=$(find . -name "*defconfig*" | grep -v "kunit" | head -n 1)
-          echo "Configuring file: $DEFCONFIG_FILE"
+          # Entrar a la carpeta interna del kernel correcta
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           
-          if [ -z "$DEFCONFIG_FILE" ]; then
-            echo "Error: No se encontró ningún archivo defconfig."
-            exit 1
-          fi
-
-          echo "CONFIG_NETDEVICES=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_WLAN=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_CFG80211_WEXT=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MAC80211=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MAC80211_HAS_RC=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> "$DEFCONFIG_FILE"
+          # LIMPIEZA RADICAL DE KERNELSU
+          rm -rf drivers/kernelsu || true
+          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          echo "CONFIG_MT76_CORE=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MT76_LEDS=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MT76_USB=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MT76_CONNAC_LIB=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MT7921_COMMON=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_MT7921U=y" >> "$DEFCONFIG_FILE"
+          # Anulación de AFDO
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           
-          echo "CONFIG_USB_SUPPORT=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_USB=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_USB_NET_DRIVERS=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_PACKET=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_NET_RAW=y" >> "$DEFCONFIG_FILE"
-
-      - name: Download MT7921U Firmware Binaries
-        run: |
-          mkdir -p firmware/mediatek
-          wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://raw.githubusercontent.com/kholk/android_vendor_qcom_msm8998/master/proprietary/vendor/firmware/WIFI_RAM_CODE_MT7921_1_1.bin" || wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin" || true
-          wget -O firmware/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin" || true
-
-      - name: Compile Kernel
-        run: |
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=aarch64-linux-gnu-gcc
-          
-          cd kernel-6.6 || cd kernel || true
-          
-          if [ -f "drivers/Kconfig" ]; then
-            sed -i '/kernelsu/d' drivers/Kconfig || true
-          fi
-          
-          # Buscar el defconfig correctamente dentro de la ruta de la estructura mostrada
-          DEFCONFIG_NAME=$(find arch/arm64 -name "*defconfig*" -o -name "*_defconfig*" | grep -v "kunit" | head -n 1 | xargs basename)
-          
-          if [ -z "$DEFCONFIG_NAME" ]; then
-            DEFCONFIG_NAME="a05m_defconfig"
-          fi
-          
-          echo "Usando defconfig: $DEFCONFIG_NAME"
-          
+          make mrproper || true
           mkdir -p out
-          make O=out CC=aarch64-linux-gnu-gcc $DEFCONFIG_NAME
-          make O=out CC=aarch64-linux-gnu-gcc Image -j$(nproc)
-
-      - name: Prepare Boot Image for Eros Tool
-        run: |
-          if [ -f "kernel-6.6/out/arch/arm64/boot/Image" ]; then
-            cp kernel-6.6/out/arch/arm64/boot/Image boot.img
-          elif [ -f "kernel/out/arch/arm64/boot/Image" ]; then
-            cp kernel/out/arch/arm64/boot/Image boot.img
-          elif [ -f "out/arch/arm64/boot/Image" ]; then
-            cp out/arch/arm64/boot/Image boot.img
-          elif [ -f "arch/arm64/boot/Image" ]; then
-            cp arch/arm64/boot/Image boot.img
-          fi
-
-          if [ -f "boot.img" ]; then
-            echo "Imagen boot.img lista para Eros Tool."
-            zip -r9 A05M-Boot-Eros.zip boot.img
+          
+          # Forzar el defconfig correcto del A05
+          if [ -f "arch/arm64/configs/a05_defconfig" ]; then
+            DEFCONFIG="a05_defconfig"
+          elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
+            DEFCONFIG="vendor/a05_defconfig"
+          elif [ -f "arch/arm64/configs/exynos*defconfig" ] || [ -f "arch/arm64/configs/mt*" ]; then
+            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
           else
-            echo "Error: No se encontró la imagen compilada del kernel."
+            DEFCONFIG="gki_defconfig"
+          fi
+          
+          echo "Usando defconfig: $DEFCONFIG"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+          
+          # Inyección limpia optimizada para evitar conflictos de dependencias en drivers USB/WLAN
+          {
+            echo "CONFIG_AFDO_CLANG=n"
+            echo "CONFIG_AUTOFDO_CLANG=n"
+            echo "CONFIG_PROPELLER_CLANG=n"
+            echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
+            echo "CONFIG_NET=y"
+            echo "CONFIG_WIRELESS=y"
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_MAC80211=y"
+            echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
+            echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
+            echo "CONFIG_NL80211_TESTMODE=y"
+            echo "CONFIG_USB=y"
+            echo "CONFIG_USB_SUPPORT=y"
+            echo "CONFIG_MT76_CORE=m"
+            echo "CONFIG_MT76_USB=m"
+            echo "CONFIG_MT76_CONNAC_LIB=m"
+            echo "CONFIG_MT7921_COMMON=m"
+            echo "CONFIG_MT7921U=m"
+          } >> out/.config
+          
+          # Usar scripts de configuración automatizados para resolver dependencias faltantes automáticamente
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
+
+      - name: Compilar Imagen del Kernel y Módulos
+        run: |
+          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          # Compilar imagen principal
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
+          # Compilar los módulos (necesario ya que el driver MT7921U se configuró como módulo 'm')
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
+
+      - name: Empaquetar con AnyKernel3 para TWRP
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git AK3
+          
+          IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
+          
+          if [ -z "$IMAGE_PATH" ]; then
+            echo "Error: No se encontró la imagen compilada."
             exit 1
           fi
+          
+          cp "$IMAGE_PATH" AK3/
+          
+          cd AK3
+          sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
+          sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
+          sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
+          sed -i 's/block=\/dev\/block\/.*/block=\/dev\/block\/by-name\/boot;/g' anykernel.sh
+          
+          zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
 
-      - name: Upload Kernel Artifact for Eros Tool
+      - name: Subir ZIP Flasheable como Artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: A05M-Kernel-Eros
-          path: A05M-Boot-Eros.zip
+          name: Kernel-A05-Panda-MonitorMode-TWRP
+          path: Kernel-A05-Panda-MonitorMode.zip
