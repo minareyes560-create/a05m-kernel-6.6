@@ -1,10 +1,67 @@
-- name: Compile Kernel
+name: Build Custom Kernel A05M (MT7921U Monitor Mode)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libncursesw5-dev libelf-dev clang lld llvm git wget zip python3
+
+      - name: Locate and Inject MT7921U & Monitor Mode Configs
+        run: |
+          # Buscar el defconfig dentro de las carpetas del kernel
+          DEFCONFIG_FILE=$(find . -name "*defconfig*" | head -n 1)
+          echo "Configuring file: $DEFCONFIG_FILE"
+          
+          if [ -z "$DEFCONFIG_FILE" ]; then
+            echo "Error: No se encontró ningún archivo defconfig."
+            exit 1
+          fi
+
+          echo "CONFIG_NETDEVICES=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_WLAN=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_CFG80211_WEXT=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211_HAS_RC=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> "$DEFCONFIG_FILE"
+          
+          echo "CONFIG_MT76_CORE=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT76_LEDS=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT76_USB=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT76_CONNAC_LIB=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT7921_COMMON=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_MT7921U=y" >> "$DEFCONFIG_FILE"
+          
+          echo "CONFIG_USB_SUPPORT=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_USB=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_USB_NET_DRIVERS=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_PACKET=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_NET_RAW=y" >> "$DEFCONFIG_FILE"
+
+      - name: Download MT7921U Firmware Binaries
+        run: |
+          mkdir -p firmware/mediatek
+          wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://raw.githubusercontent.com/kholk/android_vendor_qcom_msm8998/master/proprietary/vendor/firmware/WIFI_RAM_CODE_MT7921_1_1.bin" || wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin" || true
+          wget -O firmware/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin" || true
+
+      - name: Compile Kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Entrar a la carpeta correcta del código fuente que se ve en tu repositorio
+          # Entrar a la carpeta correcta del código fuente del kernel
           cd kernel-6.6 || cd kernel || true
           
           DEFCONFIG_NAME=$(basename $(find . -name "*defconfig*" | head -n 1))
@@ -14,3 +71,30 @@
           
           echo "Iniciando compilación del kernel..."
           make O=out -j$(nproc)
+
+      - name: Prepare Boot Image for Eros Tool
+        run: |
+          # Buscar la imagen compilada dentro de la carpeta del kernel o en la raíz
+          if [ -f "kernel-6.6/out/arch/arm64/boot/Image" ]; then
+            cp kernel-6.6/out/arch/arm64/boot/Image boot.img
+          elif [ -f "kernel/out/arch/arm64/boot/Image" ]; then
+            cp kernel/out/arch/arm64/boot/Image boot.img
+          elif [ -f "out/arch/arm64/boot/Image" ]; then
+            cp out/arch/arm64/boot/Image boot.img
+          elif [ -f "arch/arm64/boot/Image" ]; then
+            cp arch/arm64/boot/Image boot.img
+          fi
+
+          if [ -f "boot.img" ]; then
+            echo "Imagen boot.img lista para Eros Tool."
+            zip -r9 A05M-Boot-Eros.zip boot.img
+          else
+            echo "Error: No se encontró la imagen compilada del kernel."
+            exit 1
+          fi
+
+      - name: Upload Kernel Artifact for Eros Tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: A05M-Kernel-Eros
+          path: A05M-Boot-Eros.zip
