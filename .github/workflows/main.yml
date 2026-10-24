@@ -24,11 +24,11 @@ jobs:
           echo "Directorio actual de trabajo:"
           pwd
           
-          # LIMPIEZA RADICAL DE KERNELSU para evitar conflictos de Kconfig
+          # LIMPIEZA DE KERNELSU
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
-          # Desactivación total de AFDO / AutoFDO / Propeller
+          # Desactivación de AFDO / AutoFDO
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_PROPELLER_CLANG=y/CONFIG_PROPELLER_CLANG=n/g' || true
@@ -36,12 +36,19 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Usar gki_defconfig (verificado en arch/arm64/configs)
-          DEFCONFIG="gki_defconfig"
-          echo "Usando defconfig: $DEFCONFIG"
+          # Buscar defconfig específico de Samsung si existe, de lo contrario usar gki_defconfig
+          if [ -f "arch/arm64/configs/a05_defconfig" ]; then
+            DEFCONFIG="a05_defconfig"
+          elif [ -f "arch/arm64/configs/samsung_a05_defconfig" ]; then
+            DEFCONFIG="samsung_a05_defconfig"
+          else
+            DEFCONFIG="gki_defconfig"
+          fi
           
+          echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
+          # Inyección de flags para Redes y Drivers USB Wi-Fi (mt76 / AXE3000)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -87,12 +94,11 @@ jobs:
           
           cp "$IMAGE_PATH" AK3/Image
           
-          # Copiar tal cual tu anykernel.sh personalizado desde la raíz sin alteraciones
           if [ -f "anykernel.sh" ]; then
             cp -f anykernel.sh AK3/anykernel.sh
-            echo "¡anykernel.sh copiado exactamente como lo diseñaste!"
+            echo "¡anykernel.sh copiado correctamente!"
           else
-            echo "Error: No se encontró anykernel.sh en la raíz del repositorio."
+            echo "Error: No se encontró anykernel.sh en la raíz."
             exit 1
           fi
           
