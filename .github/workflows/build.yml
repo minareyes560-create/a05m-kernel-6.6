@@ -54,9 +54,8 @@ jobs:
           wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://raw.githubusercontent.com/kholk/android_vendor_qcom_msm8998/master/proprietary/vendor/firmware/WIFI_RAM_CODE_MT7921_1_1.bin" || wget -O firmware/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_RAM_CODE_MT7921_1_1.bin" || true
           wget -O firmware/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/WIFI_MT7921_patch_mcu_1_1_hdr.bin" || true
 
-      - name: Package Boot Image for Odin
+      - name: Prepare Boot Image for Eros Tool
         run: |
-          # Asegurar que el archivo de imagen tenga el nombre correcto
           if [ -f "out/arch/arm64/boot/Image" ]; then
             cp out/arch/arm64/boot/Image boot.img
           elif [ -f "arch/arm64/boot/Image" ]; then
@@ -64,15 +63,15 @@ jobs:
           fi
 
           if [ -f "boot.img" ]; then
-            echo "Empaquetando boot.img en formato tar para Odin..."
-            tar -cvf A05M-Kernel-MT7921U.tar boot.img
+            echo "Imagen boot.img lista para Eros Tool."
+            zip -r9 A05M-Boot-Eros.zip boot.img
           else
-            echo "Error: No se encontró la imagen compilada."
+            echo "Error: No se encontró la imagen compilada del kernel."
             exit 1
           fi
 
-      - name: Upload Kernel Artifact
+      - name: Upload Kernel Artifact for Eros Tool
         uses: actions/upload-artifact@v4
         with:
-          name: A05M-Kernel-MT7921U-Odin
-          path: A05M-Kernel-MT7921U.tar
+          name: A05M-Kernel-Eros
+          path: A05M-Boot-Eros.zip
