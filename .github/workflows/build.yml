@@ -88,9 +88,9 @@ jobs:
           # Copiar la imagen principal que utiliza Eros Tool
           cp "$IMAGE_PATH" ErosOutput/boot.img
           
-          # Si Eros Tool requiere empaquetar en tar/zip específico, puedes agregarlo aquí
+          # Empaquetar usando el formato ustar estándar para evitar corrupción de cabeceras en Android
           cd ErosOutput
-          tar -cvf kernel_a05_eros.tar boot.img
+          tar --format=ustar -cvf kernel_a05_eros.tar boot.img
 
       - name: Subir Artefacto para Eros Tool
         uses: actions/upload-artifact@v4
