@@ -75,9 +75,9 @@ jobs:
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
 
-      - name: Preparar Artefacto para Eros Tool
+      - name: Preparar Artefacto para Eros Tool (AnyKernel3)
         run: |
-          mkdir -p ErosOutput
+          # Buscar la imagen compilada del kernel (Image)
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
@@ -85,15 +85,25 @@ jobs:
             exit 1
           fi
           
-          # Copiar la imagen y renombrarla a boot.img
-          cp "$IMAGE_PATH" ErosOutput/boot.img
-          
-          # Empaquetar usando el formato ustar puro y estricto compatible con Eros Tool en el A05
-          cd ErosOutput
-          tar -H ustar -cvf boot.tar boot.img
-          rm -f boot.img
+          # Verificar si la carpeta AnyKernel3 existe
+          if [ -d "AnyKernel3" ]; then
+            echo "Copiando Image a la carpeta AnyKernel3..."
+            cp "$IMAGE_PATH" AnyKernel3/
+            
+            # Crear el archivo zip/tar compatible que Eros Tool puede leer
+            cd AnyKernel3
+            # Eros Tool suele aceptar archivos comprimidos limpios o tar estructurados
+            zip -r9 ../ErosOutput/Kernel-A05-AnyKernel.zip *
+            cd ..
+          else
+            # Método alternativo si no se usa AnyKernel3 directamente
+            mkdir -p ErosOutput
+            cp "$IMAGE_PATH" ErosOutput/boot.img
+            cd ErosOutput
+            tar -H ustar -cvf boot.tar boot.img
+          fi
 
-      - name: Subir Artefacto para Eros Tool
+      - name: Subir Artefacto Actualizado
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-A05-ErosTool
