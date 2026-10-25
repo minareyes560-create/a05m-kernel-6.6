@@ -1,4 +1,4 @@
-name: Compilar Kernel Samsung A05 - Modo Monitor Nativomt76
+name: Compilar Kernel Samsung A05 - Eros Tool
 
 on:
   workflow_dispatch:
@@ -17,10 +17,9 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
-          # Entrar a la carpeta interna del kernel correcta
           cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           
-          # LIMPIEZA RADICAL DE KERNELSU
+          # Limpieza radical de KernelSU
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           
@@ -31,7 +30,6 @@ jobs:
           make mrproper || true
           mkdir -p out
           
-          # Forzar el defconfig correcto del A05
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -45,7 +43,7 @@ jobs:
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
           
-          # Inyección limpia optimizada para evitar conflictos de dependencias en drivers USB/WLAN
+          # Configuración optimizada para evitar errores de compilación y habilitar soporte USB/WLAN
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -69,21 +67,17 @@ jobs:
             echo "CONFIG_MT7921U=m"
           } >> out/.config
           
-          # Usar scripts de configuración automatizados para resolver dependencias faltantes automáticamente
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
 
       - name: Compilar Imagen del Kernel y Módulos
         run: |
           cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
-          # Compilar imagen principal
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
-          # Compilar los módulos (necesario ya que el driver MT7921U se configuró como módulo 'm')
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
 
-      - name: Empaquetar con AnyKernel3 para TWRP
+      - name: Preparar Artefacto para Eros Tool
         run: |
-          git clone https://github.com/osm0sis/AnyKernel3.git AK3
-          
+          mkdir -p ErosOutput
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
@@ -91,18 +85,15 @@ jobs:
             exit 1
           fi
           
-          cp "$IMAGE_PATH" AK3/
+          # Copiar la imagen principal que utiliza Eros Tool
+          cp "$IMAGE_PATH" ErosOutput/boot.img
           
-          cd AK3
-          sed -i 's/device.name1=.*/device.name1=a05/g' anykernel.sh
-          sed -i 's/device.name2=.*/device.name2=a05m/g' anykernel.sh
-          sed -i 's/device.name3=.*/device.name3=SM-A055M/g' anykernel.sh
-          sed -i 's/block=\/dev\/block\/.*/block=\/dev\/block\/by-name\/boot;/g' anykernel.sh
-          
-          zip -r9 ../Kernel-A05-Panda-MonitorMode.zip * -x .git README.md *placeholder
+          # Si Eros Tool requiere empaquetar en tar/zip específico, puedes agregarlo aquí
+          cd ErosOutput
+          tar -cvf kernel_a05_eros.tar boot.img
 
-      - name: Subir ZIP Flasheable como Artefacto
+      - name: Subir Artefacto para Eros Tool
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-A05-Panda-MonitorMode-TWRP
-          path: Kernel-A05-Panda-MonitorMode.zip
+          name: Kernel-A05-ErosTool
+          path: ErosOutput/
