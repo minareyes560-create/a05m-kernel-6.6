@@ -77,8 +77,8 @@ jobs:
 
       - name: Preparar Artefacto para Eros Tool / AnyKernel3
         run: |
-          # Crear directorio de salida al inicio del paso
-          mkdir -p ErosOutput
+          # Crear directorio absoluto de salida
+          mkdir -p "$GITHUB_WORKSPACE/ErosOutput"
           
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
@@ -94,21 +94,29 @@ jobs:
             echo "Integrando kernel con AnyKernel3..."
             cp "$IMAGE_PATH" AnyKernel3/Image
             cd AnyKernel3
-            zip -r9 ../ErosOutput/Kernel-A05-Flashable.zip * -x "*.git*"
-            cd ..
+            zip -r9 "$GITHUB_WORKSPACE/ErosOutput/Kernel-A05-Flashable.zip" * -x "*.git*"
+            cd "$GITHUB_WORKSPACE"
           fi
           
-          # 2. Generar el boot.tar estándar y limpio (formato ustar)
+          # 2. Copiar la imagen a un archivo temporal en la salida absoluta
+          cp "$IMAGE_PATH" "$GITHUB_WORKSPACE/ErosOutput/boot.img"
+          
+          # 3. Generar boot.tar usando rutas absolutas sin enredos de directorios
           echo "Generando boot.tar..."
-          cp "$IMAGE_PATH" ErosOutput/boot.img
-          cd ErosOutput
+          cd "$GITHUB_WORKSPACE/ErosOutput"
           tar --format=ustar -cvf boot.tar boot.img
           
-          # 3. Generar el Kernel-A05-Flashable.tar también limpio (formato ustar)
+          # 4. Generar Kernel-A05-Flashable.tar directamente en la misma carpeta absoluta
           echo "Generando Kernel-A05-Flashable.tar..."
           cp boot.img kernel_temp.img
           tar --format=ustar -cvf Kernel-A05-Flashable.tar kernel_temp.img
           
-          # Limpiar archivos temporales dentro de la carpeta de salida
+          # Limpiar archivos temporales y volver a la raíz
           rm -f boot.img kernel_temp.img
-          cd ..
+          cd "$GITHUB_WORKSPACE"
+
+      - name: Subir Artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-A05-ErosTool
+          path: ErosOutput/
