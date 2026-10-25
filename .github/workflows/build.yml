@@ -1,4 +1,4 @@
-name: Compilar Kernel Samsung A05 - Eros Tool
+name: Compilar Kernel Samsung A05 - Eros Tool / AnyKernel3
 
 on:
   workflow_dispatch:
@@ -75,9 +75,11 @@ jobs:
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
 
-      - name: Preparar Artefacto para Eros Tool (AnyKernel3)
+      - name: Preparar Artefacto para Eros Tool / AnyKernel3
         run: |
-          # Buscar la imagen compilada del kernel (Image)
+          # Crear directorio de salida al inicio del paso
+          mkdir -p ErosOutput
+          
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
@@ -85,25 +87,32 @@ jobs:
             exit 1
           fi
           
-          # Verificar si la carpeta AnyKernel3 existe
+          echo "Imagen encontrada en: $IMAGE_PATH"
+          
+          # Verificar si existe la estructura de AnyKernel3 en la raíz del proyecto
           if [ -d "AnyKernel3" ]; then
-            echo "Copiando Image a la carpeta AnyKernel3..."
-            cp "$IMAGE_PATH" AnyKernel3/
+            echo "Integrando kernel con AnyKernel3..."
+            cp "$IMAGE_PATH" AnyKernel3/Image
             
-            # Crear el archivo zip/tar compatible que Eros Tool puede leer
+            # Comprimir AnyKernel3 en formato ZIP para Eros Tool / Recovery Custom
             cd AnyKernel3
-            # Eros Tool suele aceptar archivos comprimidos limpios o tar estructurados
-            zip -r9 ../ErosOutput/Kernel-A05-AnyKernel.zip *
+            zip -r9 ../ErosOutput/Kernel-A05-Flashable.zip * -x "*.git*"
             cd ..
-          else
-            # Método alternativo si no se usa AnyKernel3 directamente
-            mkdir -p ErosOutput
+            
+            # También generamos una versión TAR alternativa dentro de ErosOutput
             cp "$IMAGE_PATH" ErosOutput/boot.img
             cd ErosOutput
             tar -H ustar -cvf boot.tar boot.img
+            rm -f boot.img
+          else
+            echo "AnyKernel3 no encontrado, empaquetando como boot.tar directo..."
+            cp "$IMAGE_PATH" ErosOutput/boot.img
+            cd ErosOutput
+            tar -H ustar -cvf boot.tar boot.img
+            rm -f boot.img
           fi
 
-      - name: Subir Artefacto Actualizado
+      - name: Subir Artefacto
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-A05-ErosTool
