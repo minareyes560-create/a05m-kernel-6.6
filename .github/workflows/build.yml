@@ -1,4 +1,4 @@
-name: Compilar Kernel Samsung A05 - Eros Tool / AnyKernel3
+name: Compilar Kernel Samsung A05 - Modo Monitor Nativomt76
 
 on:
   workflow_dispatch:
@@ -17,19 +17,21 @@ jobs:
 
       - name: Inyectar Configuración y Drivers Nativos MT76
         run: |
+          # Entrar a la carpeta interna del kernel correcta
           cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
-          
-          # Limpieza radical de KernelSU
+
+          # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
-          
+
           # Anulación de AFDO
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
-          
+
           make mrproper || true
           mkdir -p out
-          
+
+          # Forzar el defconfig correcto del A05 si existe, o buscar el de vendor
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -39,11 +41,10 @@ jobs:
           else
             DEFCONFIG="gki_defconfig"
           fi
-          
+
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
-          
-          # Configuración optimizada para evitar errores de compilación y habilitar soporte USB/WLAN
+
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -58,53 +59,43 @@ jobs:
             echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
             echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
             echo "CONFIG_NL80211_TESTMODE=y"
-            echo "CONFIG_USB=y"
-            echo "CONFIG_USB_SUPPORT=y"
-            echo "CONFIG_MT76_CORE=m"
-            echo "CONFIG_MT76_USB=m"
-            echo "CONFIG_MT76_CONNAC_LIB=m"
-            echo "CONFIG_MT7921_COMMON=m"
-            echo "CONFIG_MT7921U=m"
+            echo "CONFIG_MT76_CORE=y"
+            echo "CONFIG_MT76_USB=y"
+            echo "CONFIG_MT76_CONNAC_LIB=y"
+            echo "CONFIG_MT7921_COMMON=y"
+            echo "CONFIG_MT7921U=y"
           } >> out/.config
-          
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
 
-      - name: Compilar Imagen del Kernel y Módulos
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
+
+      - name: Compilar Imagen del Kernel
         run: |
           cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
-          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- modules
 
-      - name: Preparar Artefacto para Eros Tool / AnyKernel3
+      - name: Empaquetar para Eros Tool (.tar.md5)
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/ErosOutput"
-          
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
-          
+
           if [ -z "$IMAGE_PATH" ]; then
             echo "Error: No se encontró la imagen compilada."
             exit 1
           fi
-          
-          echo "Imagen encontrada en: $IMAGE_PATH"
-          
-          cp "$IMAGE_PATH" "$GITHUB_WORKSPACE/ErosOutput/boot.img"
-          
-          if [ -d "AnyKernel3" ]; then
-            echo "Integrando kernel con AnyKernel3..."
-            cp "$IMAGE_PATH" AnyKernel3/Image
-            cd AnyKernel3
-            zip -r9 "$GITHUB_WORKSPACE/ErosOutput/Kernel-A05-Flashable.zip" . -x "*.git*" "*.github*"
-            cd "$GITHUB_WORKSPACE"
-          else
-            cd "$GITHUB_WORKSPACE/ErosOutput"
-            zip Kernel-A05-Flashable.zip boot.img
-            cd "$GITHUB_WORKSPACE"
-          fi
 
-      - name: Subir Artefacto
+          echo "Imagen encontrada en: $IMAGE_PATH"
+
+          mkdir -p eros_package
+          cp "$IMAGE_PATH" eros_package/boot.img
+
+          cd eros_package
+          tar -H ustar -c boot.img > ../boot.tar
+          md5sum boot.tar | awk '{print $1}' | tr -d '\n' >> boot.tar
+          mv boot.tar ../Kernel-A05-Panda-MonitorMode-Eros.tar.md5
+          cd ..
+
+      - name: Subir Artefacto para Eros Tool
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-A05-ErosTool
-          path: ErosOutput/Kernel-A05-Flashable.zip
-          if-no-files-found: error
+          name: Kernel-A05-Panda-MonitorMode-Eros
+          path: Kernel-A05-Panda-MonitorMode-Eros.tar.md5
