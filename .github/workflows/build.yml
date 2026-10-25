@@ -37,7 +37,14 @@ jobs:
             DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
           fi
 
+          echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+
+          # Validación de existencia del .config
+          if [ ! -f "out/.config" ]; then
+            echo "Error: El archivo .config no se generó."
+            exit 1
+          fi
 
           # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
           {
@@ -54,8 +61,10 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
+          # Sincronización correcta para evitar errores de dependencias (auto.conf.cmd)
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
+          
+          # Compilación de la imagen
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Crear Tarball y Firma MD5 exacta para Eros Tool
