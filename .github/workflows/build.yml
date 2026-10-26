@@ -17,8 +17,14 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar directamente a la ruta real de tu estructura vista en GitHub
-          cd kernel-6.6/kernel-6.6 || cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || true
+          # Búsqueda automática del directorio real que contiene el Makefile del kernel
+          TARGET_DIR=$(find . -name "Makefile" -path "*/kernel*/*" -exec dirname {} \; | head -n 1)
+          if [ -z "$TARGET_DIR" ]; then
+            TARGET_DIR="kernel-6.6/kernel-6.6"
+          fi
+          
+          echo "Entrando al directorio de compilación: $TARGET_DIR"
+          cd "$TARGET_DIR"
 
           # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
@@ -29,7 +35,7 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Detección del defconfig (visto en tu captura dentro de arch/arm64/configs)
+          # Detección del defconfig para el A05
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -41,13 +47,14 @@ jobs:
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
 
-          # Validación estricta del .config
+          # Verificación estricta de que el archivo .config se creó correctamente
           if [ ! -f "out/.config" ]; then
-            echo "Error crítico: El archivo out/.config no se generó."
+            echo "Error crítico: El archivo out/.config no se generó. Listando contenido de arch/arm64/configs:"
+            ls -l arch/arm64/configs/ || true
             exit 1
           fi
 
-          # Inyección de parámetros de red y drivers mt76
+          # Inyección segura de parámetros de red y drivers mt76
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -62,17 +69,21 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
-          # Sincronización limpia para evitar el error de auto.conf.cmd
+          # Sincronización limpia para evitar errores de dependencias
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
           
           # Compilación de la imagen
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
+          # Guardar la ruta actual para el siguiente paso
+          pwd > /tmp/build_path
+
       - name: Crear Tarball y Firma MD5 exacta para Eros Tool
         run: |
-          cd kernel-6.6/kernel-6.6 || cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || true
+          BUILD_DIR=$(cat /tmp/build_path)
+          cd "$BUILD_DIR"
           
-          IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
+          IMAGE_PATH=$(find out -name "Image" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
             echo "Error: No se encontró la imagen Image compilada."
