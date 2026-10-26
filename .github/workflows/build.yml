@@ -17,8 +17,8 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar exactamente a la ruta solicitada
-          cd a05m-kernel-6.6/kernel-6.6
+          # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
+          cd kernel-6.6
 
           # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
