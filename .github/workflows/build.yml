@@ -17,26 +17,8 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Búsqueda precisa de la carpeta raíz del kernel basándose en arch/arm64/configs
-          KERNEL_ROOT=""
-          for path in "kernel-6.6/kernel-6.6" "kernel-6.6" "kernel" "."; do
-            if [ -d "$path/arch/arm64/configs" ]; then
-              KERNEL_ROOT="$path"
-              break
-            fi
-          done
-          
-          if [ -z "$KERNEL_ROOT" ]; then
-            KERNEL_ROOT=$(find . -type d -name "configs" -path "*/arm64/*" | head -n 1 | sed 's|/arch/arm64/configs||')
-          fi
-
-          if [ -z "$KERNEL_ROOT" ] || [ ! -d "$KERNEL_ROOT" ]; then
-            echo "Error: No se pudo localizar la raíz del kernel."
-            exit 1
-          fi
-
-          echo "Directorio raíz del kernel detectado con éxito: $KERNEL_ROOT"
-          cd "$KERNEL_ROOT"
+          # Entrar directo a la carpeta kernel-6.6 que se ve en la raíz del repositorio
+          cd kernel-6.6
 
           # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
