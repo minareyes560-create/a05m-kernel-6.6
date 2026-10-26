@@ -78,11 +78,17 @@ jobs:
             exit 1
           fi
 
+          # Asegurar la ruta absoluta de AnyKernel3 sin importar la ubicación actual
+          ANYKERNEL_DIR="$BUILD_DIR/AnyKernel3"
+          if [ ! -d "$ANYKERNEL_DIR" ]; then
+            ANYKERNEL_DIR="$GITHUB_WORKSPACE/AnyKernel3"
+          fi
+
           # Copiar la nueva imagen compilada a la carpeta AnyKernel3
-          cp "$IMAGE_PATH" AnyKernel3/Image
+          cp "$IMAGE_PATH" "$ANYKERNEL_DIR/Image"
 
           # Descomprimir el boot.img.lz4 original para que AnyKernel3 lo utilice de base limpia
-          cd AnyKernel3
+          cd "$ANYKERNEL_DIR"
           if [ -f "boot.img.lz4" ]; then
             lz4 -d boot.img.lz4 boot.img || unlz4 boot.img.lz4 || true
           fi
