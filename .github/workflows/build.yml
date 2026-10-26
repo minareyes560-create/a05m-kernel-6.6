@@ -17,7 +17,7 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
+          # Entrar directo a la carpeta kernel-6.6
           cd kernel-6.6
 
           # Limpieza profunda de residuos
@@ -29,7 +29,7 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Usar gki_defconfig desde arch/arm64/configs
+          # Usar gki_defconfig como base
           echo "Usando defconfig base: gki_defconfig"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
@@ -60,7 +60,8 @@ jobs:
           # Compilación de la imagen
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
-          # Guardar la ruta actual para el siguiente paso
+          # Guardar la ruta absoluta de la raíz del workspace para el siguiente paso
+          echo "GITHUB_WORKSPACE_DIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
           pwd > /tmp/build_path
 
       - name: Crear Tarball y Firma MD5 exacta para Eros Tool
@@ -81,9 +82,7 @@ jobs:
           cd eros_pkg
           tar -H ustar -c boot.img > ../boot.tar
           md5sum boot.tar | awk '{print $1}' | tr -d '\n' >> ../boot.tar
-          mv ../boot.tar ../Kernel-A05-Panda-MonitorMode-Eros.tar.md5
-          cd ..
-          cp Kernel-A05-Panda-MonitorMode-Eros.tar.md5 ../..
+          mv ../boot.tar "$GITHUB_WORKSPACE/Kernel-A05-Panda-MonitorMode-Eros.tar.md5"
 
       - name: Subir Archivo .tar.md5 Real
         uses: actions/upload-artifact@v4
