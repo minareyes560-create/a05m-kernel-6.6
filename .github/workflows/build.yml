@@ -28,8 +28,21 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Cargar configuración base y asegurar compatibilidad MediaTek
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
+          # Búsqueda inteligente del defconfig exacto o respaldo optimizado para MediaTek
+          DEFCONFIG=""
+          for cfg in a05_defconfig a05m_defconfig mt6768_defconfig gki_defconfig; do
+            if [ -f "arch/arm64/configs/$cfg" ]; then
+              DEFCONFIG="$cfg"
+              break
+            fi
+          done
+          
+          if [ -z "$DEFCONFIG" ]; then
+            DEFCONFIG="gki_defconfig"
+          fi
+
+          echo "Usando configuración detectada: $DEFCONFIG"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
 
           # Inyección estricta de los drivers mt76 y soporte inalambrico nativo (=y)
           {
@@ -48,7 +61,7 @@ jobs:
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
           
-          # Compilación limpia de la imagen del kernel y los dtbs integrados
+          # Compilación limpia de la imagen del kernel y los dtbs obligatorios
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image dtbs
 
           pwd > /tmp/build_path
@@ -68,8 +81,11 @@ jobs:
           mkdir -p eros_pkg
           cp "$IMAGE_PATH" eros_pkg/boot.img
           
+          # Adjuntar los archivos dtb para mantener la compatibilidad con mmcblk0p35
+          find out -name "*.dtb" -exec cp {} eros_pkg/ \; || true
+
           cd eros_pkg
-          tar -H ustar -c boot.img > ../boot.tar
+          tar -H ustar -c * > ../boot.tar
           cd ..
           
           # Añadir la suma MD5 exacta en formato estándar con espacios para Eros Tool
