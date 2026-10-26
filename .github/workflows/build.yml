@@ -1,4 +1,4 @@
-name: Compilar Kernel Samsung A05 - Modo Monitor Nativomt76
+name: Compilar Kernel Samsung A05 - Eros Tool
 
 on:
   workflow_dispatch:
@@ -15,65 +15,48 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
-      - name: Inyectar Configuración y Drivers Nativos MT76
+      - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar a la carpeta interna del kernel correcta
           cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
-          
-          # LIMPIEZA RADICAL DE KERNELSU para evitar que rompa drivers/Kconfig
+
+          # Limpieza profunda de residuos para evitar errores de compilación
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
-          
-          # Anulación de AFDO
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
-          
+
           make mrproper || true
           mkdir -p out
-          
-          # Forzar el defconfig correcto del A05 si existe, o buscar el de vendor
+
+          # Detección automática del defconfig para el A05
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
             DEFCONFIG="vendor/a05_defconfig"
-          elif [ -f "arch/arm64/configs/exynos*defconfig" ] || [ -f "arch/arm64/configs/mt*" ]; then
-            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
           else
-            DEFCONFIG="gki_defconfig"
+            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
           fi
-          
-          echo "Usando defconfig: $DEFCONFIG"
+
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
-          
+
+          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
-            echo "CONFIG_PROPELLER_CLANG=n"
-            echo "CONFIG_PROP_AFDO_PROFILE_PATH=\"\""
             echo "CONFIG_NET=y"
             echo "CONFIG_WIRELESS=y"
             echo "CONFIG_NETDEVICES=y"
             echo "CONFIG_WLAN=y"
             echo "CONFIG_CFG80211=y"
             echo "CONFIG_MAC80211=y"
-            echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n"
-            echo "CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS=n"
-            echo "CONFIG_NL80211_TESTMODE=y"
             echo "CONFIG_MT76_CORE=y"
             echo "CONFIG_MT76_USB=y"
-            echo "CONFIG_MT76_CONNAC_LIB=y"
-            echo "CONFIG_MT7921_COMMON=y"
             echo "CONFIG_MT7921U=y"
           } >> out/.config
-          
+
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 prepare
-
-      - name: Compilar Imagen del Kernel
-        run: |
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
-
 
       - name: Crear Tarball y Firma MD5 exacta para Eros Tool
         run: |
