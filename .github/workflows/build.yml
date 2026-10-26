@@ -17,14 +17,26 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Búsqueda automática del directorio real que contiene el Makefile del kernel
-          TARGET_DIR=$(find . -name "Makefile" -path "*/kernel*/*" -exec dirname {} \; | head -n 1)
-          if [ -z "$TARGET_DIR" ]; then
-            TARGET_DIR="kernel-6.6/kernel-6.6"
-          fi
+          # Búsqueda precisa de la carpeta raíz del kernel basándose en arch/arm64/configs
+          KERNEL_ROOT=""
+          for path in "kernel-6.6/kernel-6.6" "kernel-6.6" "kernel" "."; do
+            if [ -d "$path/arch/arm64/configs" ]; then
+              KERNEL_ROOT="$path"
+              break
+            fi
+          done
           
-          echo "Entrando al directorio de compilación: $TARGET_DIR"
-          cd "$TARGET_DIR"
+          if [ -z "$KERNEL_ROOT" ]; then
+            KERNEL_ROOT=$(find . -type d -name "configs" -path "*/arm64/*" | head -n 1 | sed 's|/arch/arm64/configs||')
+          fi
+
+          if [ -z "$KERNEL_ROOT" ] || [ ! -d "$KERNEL_ROOT" ]; then
+            echo "Error: No se pudo localizar la raíz del kernel."
+            exit 1
+          fi
+
+          echo "Directorio raíz del kernel detectado con éxito: $KERNEL_ROOT"
+          cd "$KERNEL_ROOT"
 
           # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
@@ -49,8 +61,7 @@ jobs:
 
           # Verificación estricta de que el archivo .config se creó correctamente
           if [ ! -f "out/.config" ]; then
-            echo "Error crítico: El archivo out/.config no se generó. Listando contenido de arch/arm64/configs:"
-            ls -l arch/arm64/configs/ || true
+            echo "Error crítico: El archivo out/.config no se generó."
             exit 1
           fi
 
