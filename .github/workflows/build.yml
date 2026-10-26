@@ -17,9 +17,10 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || cd kernel || true
+          # Entrar directamente a la ruta real de tu estructura vista en GitHub
+          cd kernel-6.6/kernel-6.6 || cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || true
 
-          # Limpieza profunda de residuos para evitar errores de compilación
+          # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
@@ -28,7 +29,7 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Detección automática del defconfig para el A05
+          # Detección del defconfig (visto en tu captura dentro de arch/arm64/configs)
           if [ -f "arch/arm64/configs/a05_defconfig" ]; then
             DEFCONFIG="a05_defconfig"
           elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
@@ -40,7 +41,13 @@ jobs:
           echo "Usando defconfig: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
 
-          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
+          # Validación estricta del .config
+          if [ ! -f "out/.config" ]; then
+            echo "Error crítico: El archivo out/.config no se generó."
+            exit 1
+          fi
+
+          # Inyección de parámetros de red y drivers mt76
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -55,14 +62,16 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
-          # ESTA ES LA LÍNEA QUE SOLUCIONA EL ERROR DE LA CAPTURA:
+          # Sincronización limpia para evitar el error de auto.conf.cmd
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
-
-          # Compilación directa de la imagen
+          
+          # Compilación de la imagen
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
       - name: Crear Tarball y Firma MD5 exacta para Eros Tool
         run: |
+          cd kernel-6.6/kernel-6.6 || cd a05m-kernel-6.6/kernel-6.6 || cd kernel-6.6 || true
+          
           IMAGE_PATH=$(find . -name "Image" -path "*/out/*" | head -n 1)
           
           if [ -z "$IMAGE_PATH" ]; then
@@ -74,11 +83,11 @@ jobs:
           cp "$IMAGE_PATH" eros_pkg/boot.img
           
           cd eros_pkg
-          # Empaquetado estricto con cabecera ustar requerido por herramientas Odin/Eros
           tar -H ustar -c boot.img > ../boot.tar
           md5sum boot.tar | awk '{print $1}' | tr -d '\n' >> ../boot.tar
           mv ../boot.tar ../Kernel-A05-Panda-MonitorMode-Eros.tar.md5
           cd ..
+          cp Kernel-A05-Panda-MonitorMode-Eros.tar.md5 ../..
 
       - name: Subir Archivo .tar.md5 Real
         uses: actions/upload-artifact@v4
