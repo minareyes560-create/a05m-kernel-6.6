@@ -17,8 +17,8 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar directo a la carpeta kernel-6.6 que se ve en la raíz del repositorio
-          cd kernel-6.6
+          # Entrar directo a la ruta real de tu repositorio
+          cd kernel-6.6/kernel-6.6
 
           # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
@@ -29,17 +29,9 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Detección del defconfig para el A05
-          if [ -f "arch/arm64/configs/a05_defconfig" ]; then
-            DEFCONFIG="a05_defconfig"
-          elif [ -f "arch/arm64/configs/vendor/a05_defconfig" ]; then
-            DEFCONFIG="vendor/a05_defconfig"
-          else
-            DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|mt6768" | head -n 1)
-          fi
-
-          echo "Usando defconfig: $DEFCONFIG"
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
+          # Usar gki_defconfig que es el que realmente existe en este repositorio base
+          echo "Usando defconfig base: gki_defconfig"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
           # Verificación estricta de que el archivo .config se creó correctamente
           if [ ! -f "out/.config" ]; then
@@ -47,7 +39,7 @@ jobs:
             exit 1
           fi
 
-          # Inyección segura de parámetros de red y drivers mt76
+          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
