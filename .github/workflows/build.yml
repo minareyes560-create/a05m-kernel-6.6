@@ -81,7 +81,10 @@ jobs:
           
           cd eros_pkg
           tar -H ustar -c boot.img > ../boot.tar
-          md5sum boot.tar | awk '{print $1}' | tr -d '\n' >> ../boot.tar
+          
+          # Añadir la suma MD5 con el formato de espacios estándar que Eros Tool requiere
+          md5sum boot.tar >> ../boot.tar
+          
           mv ../boot.tar "$GITHUB_WORKSPACE/Kernel-A05-Panda-MonitorMode-Eros.tar.md5"
 
       - name: Subir Archivo .tar.md5 Real
