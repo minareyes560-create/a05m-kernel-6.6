@@ -1,4 +1,4 @@
-name: Compilar Kernel Samsung A05 - Eros Tool
+name: Compilar Kernel Samsung A05 con Drivers MT76 Nativos
 
 on:
   workflow_dispatch:
@@ -17,10 +17,9 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar directo a la carpeta kernel-6.6
           cd kernel-6.6
 
-          # Limpieza profunda de residuos
+          # Limpieza profunda de residuos previos
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
@@ -29,17 +28,10 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Usar gki_defconfig como base
-          echo "Usando defconfig base: gki_defconfig"
+          # Cargar configuración base y asegurar compatibilidad MediaTek
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
-          # Verificación estricta de que el archivo .config se creó correctamente
-          if [ ! -f "out/.config" ]; then
-            echo "Error crítico: El archivo out/.config no se generó."
-            exit 1
-          fi
-
-          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
+          # Inyección estricta de los drivers mt76 y soporte inalambrico nativo (=y)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -54,17 +46,14 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
-          # Sincronización limpia para evitar errores de dependencias
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
           
-          # Compilación de la imagen
-          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
+          # Compilación limpia de la imagen del kernel y los dtbs integrados
+          make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image dtbs
 
-          # Guardar la ruta absoluta de la raíz del workspace para el siguiente paso
-          echo "GITHUB_WORKSPACE_DIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
           pwd > /tmp/build_path
 
-      - name: Crear Tarball y Firma MD5 exacta para Eros Tool
+      - name: Empaquetar para Eros Tool con MD5 Exacto
         run: |
           BUILD_DIR=$(cat /tmp/build_path)
           cd "$BUILD_DIR"
@@ -83,7 +72,7 @@ jobs:
           tar -H ustar -c boot.img > ../boot.tar
           cd ..
           
-          # Añadir la suma MD5 con el formato de espacios estándar que Eros Tool requiere
+          # Añadir la suma MD5 exacta en formato estándar con espacios para Eros Tool
           md5sum boot.tar >> boot.tar
           
           mv boot.tar "$GITHUB_WORKSPACE/Kernel-A05-Panda-MonitorMode-Eros.tar.md5"
