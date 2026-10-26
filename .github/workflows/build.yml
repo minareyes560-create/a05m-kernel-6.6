@@ -13,7 +13,7 @@ jobs:
       - name: Instalación de dependencias y Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
@@ -66,7 +66,7 @@ jobs:
 
           pwd > /tmp/build_path
 
-      - name: Empaquetar para Eros Tool respetando Bloque A05
+      - name: Empaquetar con AnyKernel3 y boot.img.lz4 original
         run: |
           BUILD_DIR=$(cat /tmp/build_path)
           cd "$BUILD_DIR"
@@ -78,21 +78,20 @@ jobs:
             exit 1
           fi
 
-          mkdir -p eros_pkg
-          # Renombrar directamente a boot.img manteniendo la estructura limpia para mmcblk0p35
-          cp "$IMAGE_PATH" eros_pkg/boot.img
-          
-          cd eros_pkg
-          tar -H ustar -c boot.img > ../boot.tar
-          cd ..
-          
-          # Añadir la suma MD5 exacta en formato estándar exigido por Eros Tool
-          md5sum boot.tar >> boot.tar
-          
-          mv boot.tar "$GITHUB_WORKSPACE/Kernel-A05-Panda-MonitorMode-Eros.tar.md5"
+          # Copiar la nueva imagen compilada a la carpeta AnyKernel3
+          cp "$IMAGE_PATH" AnyKernel3/Image
 
-      - name: Subir Archivo .tar.md5 con Precaución de Hardware
+          # Descomprimir el boot.img.lz4 original para que AnyKernel3 lo utilice de base limpia
+          cd AnyKernel3
+          if [ -f "boot.img.lz4" ]; then
+            lz4 -d boot.img.lz4 boot.img || unlz4 boot.img.lz4 || true
+          fi
+
+          # Crear el archivo zip final para flashear por TWRP sin bucles de arranque
+          zip -r9 "$GITHUB_WORKSPACE/Kernel-A05-Panda-AnyKernel3.zip" * -x ".git*" README.md
+
+      - name: Subir Artifact del Kernel Flasheable
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-A05-Panda-MonitorMode-Eros
-          path: Kernel-A05-Panda-MonitorMode-Eros.tar.md5
+          name: Kernel-A05-Panda-AnyKernel3
+          path: Kernel-A05-Panda-AnyKernel3.zip
