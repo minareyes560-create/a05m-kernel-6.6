@@ -15,7 +15,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4
 
-      - name: Compilar Kernel e Inyectar Drivers MT76
+      - name: Compilar Kernel e Inyectar Drivers y Parches de Almacenamiento
         run: |
           cd kernel-6.6
 
@@ -44,7 +44,7 @@ jobs:
           echo "Usando configuración detectada: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
 
-          # Inyección estricta de los drivers mt76 y soporte inalambrico nativo (=y)
+          # Inyección estricta de drivers, soporte inalámbrico y parches de cifrado/almacenamiento (/data)
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -57,6 +57,11 @@ jobs:
             echo "CONFIG_MT76_CORE=y"
             echo "CONFIG_MT76_USB=y"
             echo "CONFIG_MT7921U=y"
+            # Parches vitales para evitar errores de montaje en /data y cifrado de Android
+            echo "CONFIG_FS_ENCRYPTION=y"
+            echo "CONFIG_FS_ENCRYPTION_METADATA_ENCRYPTION=y"
+            echo "CONFIG_BLK_DEV_DM=y"
+            echo "CONFIG_DM_CRYPT=y"
           } >> out/.config
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
