@@ -59,8 +59,10 @@ jobs:
 
       - name: Integrar con Boot Original y Preparar para Eros Tool
         run: |
-          # Descargar magiskboot para descomponer y componer la imagen de arranque (boot.img)
-          wget https://github.com/AnestisBechtsoudis/magiskboot-binaries/raw/master/bin/x86_64/magiskboot -O magiskboot
+          # Descargar magiskboot usando una URL alternativa y estable
+          wget https://github.com/DanGDroid/magiskboot_files/raw/master/magiskboot -O magiskboot || \
+          curl -Lo magiskboot https://github.com/vm03/magiskboot-build/releases/download/v25.2/magiskboot_x86_64
+          
           chmod +x magiskboot
 
           # Localizar la imagen del kernel compilada
