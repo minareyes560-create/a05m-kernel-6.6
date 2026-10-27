@@ -18,17 +18,18 @@ jobs:
 
       - name: Compile Kernel
         run: |
-          echo "Compilando kernel 6.6 para a05m..."
+          echo "Entrando a la carpeta del kernel y compilando para a05m..."
+          cd kernel-6.6
           export ARCH=arm64
           export SUBARCH=arm64
-          # Reemplaza 'tu_defconfig_aqui' con el nombre del archivo en arch/arm64/configs/ (ej. a05m_defconfig)
+          # Reemplaza 'tu_defconfig_aqui' con el nombre exacto que está en arch/arm64/configs/
           make O=out tu_defconfig_aqui
           make O=out -j$(nproc)
 
       - name: Setup AnyKernel3 and Package safely
         run: |
-          # 1. Copiar la imagen del kernel compilado a la carpeta AnyKernel3
-          cp out/arch/arm64/boot/Image AnyKernel3/Image
+          # 1. Copiar la imagen del kernel compilado (desde la subcarpeta kernel-6.6/out) a la carpeta AnyKernel3
+          cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/Image
           
           # 2. Entrar a la carpeta AnyKernel3 para trabajar de manera limpia
           cd AnyKernel3
