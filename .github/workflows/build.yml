@@ -28,9 +28,9 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Búsqueda inteligente del defconfig exacto para MediaTek / A05
+          # Búsqueda estricta del defconfig del A05 (Evitamos gki_defconfig genérico si existe el específico)
           DEFCONFIG=""
-          for cfg in a05_defconfig a05m_defconfig mt6768_defconfig gki_defconfig; do
+          for cfg in a05_defconfig a05m_defconfig mt6768_defconfig; do
             if [ -f "arch/arm64/configs/$cfg" ]; then
               DEFCONFIG="$cfg"
               break
@@ -44,7 +44,7 @@ jobs:
           echo "Usando configuración detectada: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
 
-          # Inyección estricta de drivers, soporte inalámbrico y parches de cifrado/almacenamiento (/data)
+          # Inyección estricta y limpia de opciones indispensables para evitar bootloops de almacenamiento y red
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -57,16 +57,19 @@ jobs:
             echo "CONFIG_MT76_CORE=y"
             echo "CONFIG_MT76_USB=y"
             echo "CONFIG_MT7921U=y"
-            # Parches vitales para evitar errores de montaje en /data y cifrado de Android
+            # Parches vitales para evitar errores de montaje en /data y cifrado de Samsung
             echo "CONFIG_FS_ENCRYPTION=y"
             echo "CONFIG_FS_ENCRYPTION_METADATA_ENCRYPTION=y"
             echo "CONFIG_BLK_DEV_DM=y"
             echo "CONFIG_DM_CRYPT=y"
+            # Forzar compatibilidad con esquemas de arranque de Android / Samsung
+            echo "CONFIG_IKCONFIG=y"
+            echo "CONFIG_IKCONFIG_PROC=y"
           } >> out/.config
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
           
-          # Compilación optimizada para el kernel e imagen compatible con MediaTek
+          # Compilación optimizada para el kernel e imagen compatible con MediaTek (Generando Image y asegurando formato)
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
           pwd > /tmp/build_path
@@ -83,17 +86,19 @@ jobs:
             exit 1
           fi
 
-          # Asegurar la ruta absoluta de AnyKernel3 sin importar la ubicación actual
+          # Asegurar la ruta absoluta de AnyKernel3
           ANYKERNEL_DIR="$BUILD_DIR/AnyKernel3"
           if [ ! -d "$ANYKERNEL_DIR" ]; then
             ANYKERNEL_DIR="$GITHUB_WORKSPACE/AnyKernel3"
           fi
 
-          # Copiar la nueva imagen compilada a la carpeta AnyKernel3
+          # Copiar la nueva imagen compilada a AnyKernel3
           cp "$IMAGE_PATH" "$ANYKERNEL_DIR/Image"
 
-          # Mantener el boot.img.lz4 intacto para evitar corromper las cabeceras de Samsung
           cd "$ANYKERNEL_DIR"
+
+          # Limpiar zips viejos si existen
+          rm -f "$GITHUB_WORKSPACE/Kernel-A05-Panda-AnyKernel3.zip"
 
           # Crear el archivo zip final para flashear por TWRP
           zip -r9 "$GITHUB_WORKSPACE/Kernel-A05-Panda-AnyKernel3.zip" * -x ".git*" README.md
