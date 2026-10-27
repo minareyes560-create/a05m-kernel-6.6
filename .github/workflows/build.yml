@@ -27,7 +27,6 @@ jobs:
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
 
-          # Esto elimina la línea que busca drivers/kernelsu/Kconfig para que no dé error
           sed -i '/kernelsu/d' drivers/Kconfig || true
 
           make mrproper || true
@@ -36,12 +35,17 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
 
-          # Muestra los archivos defconfig disponibles en los logs por si el nombre exacto varía
-          echo "=== Archivos defconfig disponibles ==="
-          ls arch/arm64/configs/
+          echo "=== Listando archivos defconfig disponibles en el repositorio ==="
+          ls -l arch/arm64/configs/
 
-          # Asegúrate de que a05m_defconfig coincida con el nombre exacto listado arriba
-          make O=out a05m_defconfig
+          # Detecta automáticamente el defconfig disponible para A05 o usa el estándar del directorio
+          DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|a05m|mt6769" | head -n 1)
+          if [ -z "$DEFCONFIG" ]; then
+            DEFCONFIG="a05_defconfig" # Fallback por si acaso
+          fi
+          echo "Usando defconfig: $DEFCONFIG"
+
+          make O=out $DEFCONFIG
           make O=out -j$(nproc)
 
       - name: Setup AnyKernel3 and Package safely
