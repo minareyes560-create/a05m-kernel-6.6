@@ -1,69 +1,112 @@
-name: Build Kernel 6.6 for Samsung Galaxy A05
+name: Compilar Kernel Samsung A05 - Eros Tool
 
 on:
-  push:
-    branches: [ master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source code
+      - name: Clonar repositorio del Kernel
         uses: actions/checkout@v4
 
-      - name: Setup environment and toolchain
+      - name: Instalación de dependencias y Clang
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev bc git wget zip lz4
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4
 
-      - name: Clean, Remove KernelSU dependency and Compile
+      - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          echo "Iniciando limpieza profunda, eliminando KernelSU y compilando..."
+          # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
           cd kernel-6.6
-          
-          # Limpieza profunda de residuos de KernelSU
+
+          # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
 
-          # Eliminar cualquier rastro de configuración de KernelSU en los defconfigs base
-          find arch/arm64/configs/ -type f | xargs sed -i '/CONFIG_KSU/d' || true
-
-          sed -i '/kernelsu/d' drivers/Kconfig || true
-
           make mrproper || true
           mkdir -p out
 
-          export ARCH=arm64
-          export SUBARCH=arm64
+          # Usar gki_defconfig desde arch/arm64/configs
+          echo "Usando defconfig base: gki_defconfig"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
-          echo "=== Listando archivos defconfig disponibles en el repositorio ==="
-          ls -l arch/arm64/configs/
-
-          # Detección inteligente del defconfig real disponible
-          DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|a05m|mt6769|gki" | head -n 1)
-          if [ -z "$DEFCONFIG" ]; then
-            # Si no encuentra coincidencia, toma el primer archivo .defconfig disponible
-            DEFCONFIG=$(ls arch/arm64/configs/ | grep "_defconfig" | head -n 1)
+          # Verificación estricta de que el archivo .config se creó correctamente
+          if [ ! -f "out/.config" ]; then
+            echo "Error crítico: El archivo out/.config no se generó."
+            exit 1
           fi
-          
-          echo "Usando defconfig detectado: $DEFCONFIG"
 
-          make O=out $DEFCONFIG
-          make O=out -j$(nproc)
+          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
+          {
+            echo "CONFIG_AFDO_CLANG=n"
+            echo "CONFIG_AUTOFDO_CLANG=n"
+            echo "CONFIG_NET=y"
+            echo "CONFIG_WIRELESS=y"
+            echo "CONFIG_NETDEVICES=y"
+            echo "CONFIG_WLAN=y"
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_MAC80211=y"
+            echo "CONFIG_MT76_CORE=y"
+            echo "CONFIG_MT76_USB=y"
+            echo "CONFIG_MT7921U=y"
+          } >> out/.config
 
-      - name: Setup AnyKernel3 and Package safely
+          # Compilación efectiva del kernel en paralelo
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc)
+
+      - name: Integrar con Boot Original y Preparar para Eros Tool
         run: |
-          # Copiar la imagen compilada asegurando la ruta correcta
-          cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/Image
-          
-          cd AnyKernel3
-          rm -rf .git
-          zip -r9 ../A05M-Kernel-6.6-AnyKernel3.zip *
+          # Descargar magiskboot para descomponer y componer la imagen de arranque (boot.img)
+          wget https://github.com/AnestisBechtsoudis/magiskboot-binaries/raw/master/bin/x86_64/magiskboot -O magiskboot
+          chmod +x magiskboot
 
-      - name: Upload Artifact
+          # Localizar la imagen del kernel compilada
+          KERNEL_IMAGE="kernel-6.6/out/arch/arm64/boot/Image"
+          if [ ! -f "$KERNEL_IMAGE" ]; then
+            echo "Error: No se encontró la imagen compilada del kernel en out/arch/arm64/boot/Image"
+            exit 1
+          fi
+
+          # Procesar la estructura de AnyKernel3 donde tienes el boot original
+          cd AnyKernel3
+
+          # Descomprimir boot.img.lz4 si existe en el repositorio
+          if [ -f "boot.img.lz4" ]; then
+            lz4 -d boot.img.lz4 boot.img
+          fi
+
+          # Si ya tenemos un boot.img extraído de la ROM stock, lo adaptamos
+          if [ -f "boot.img" ]; then
+            echo "Desempaquetando boot.img original con magiskboot..."
+            ../magiskboot unpack boot.img
+            
+            # Reemplazar el archivo del kernel stock por tu kernel recién compilado
+            cp ../$KERNEL_IMAGE kernel
+            
+            echo "Empaquetando y firmando cabeceras para evitar bootloop..."
+            ../magiskboot repack boot.img
+            
+            # magiskboot genera 'new-boot.img'
+            if [ -f "new-boot.img" ]; then
+              ../magiskboot cleanup
+              mv new-boot.img boot-final.img
+              echo "¡Éxito! boot-final.img optimizado anti-bootloop está listo para Eros Tool."
+            else
+              echo "Error crítico: magiskboot no pudo generar new-boot.img"
+              exit 1
+            fi
+          else
+            echo "Error: No se encontró el boot.img base de la ROM original."
+            exit 1
+          fi
+          cd ..
+
+      - name: Subir Artifacts de Compilación
         uses: actions/upload-artifact@v4
         with:
-          name: A05M-Kernel-6.6-AnyKernel3
-          path: A05M-Kernel-6.6-AnyKernel3.zip
+          name: Kernel-Samsung-A05-ErosTool-Resultados
+          path: |
+            AnyKernel3/boot-final.img
