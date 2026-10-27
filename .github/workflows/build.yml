@@ -18,26 +18,20 @@ jobs:
 
       - name: Compile Kernel
         run: |
-          echo "Entrando a la carpeta del kernel y compilando para a05m..."
+          echo "Iniciando compilación..."
           cd kernel-6.6
           export ARCH=arm64
           export SUBARCH=arm64
-          # Reemplaza 'tu_defconfig_aqui' con el nombre exacto que está en arch/arm64/configs/
-          make O=out tu_defconfig_aqui
+          make O=out a05m_defconfig
           make O=out -j$(nproc)
 
       - name: Setup AnyKernel3 and Package safely
         run: |
-          # 1. Copiar la imagen del kernel compilado (desde la subcarpeta kernel-6.6/out) a la carpeta AnyKernel3
+          # Copiar la imagen compilada asegurando la ruta correcta
           cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/Image
           
-          # 2. Entrar a la carpeta AnyKernel3 para trabajar de manera limpia
           cd AnyKernel3
-          
-          # 3. Eliminar rastros de git internos para evitar corrupción en el empaquetado
           rm -rf .git
-          
-          # 4. Crear el archivo ZIP flasheable final listo para TWRP
           zip -r9 ../A05M-Kernel-6.6-AnyKernel3.zip *
 
       - name: Upload Artifact
