@@ -71,7 +71,7 @@ jobs:
 
           pwd > /tmp/build_path
 
-      - name: Empaquetar con AnyKernel3 y boot.img.lz4 original
+      - name: Empaquetar con AnyKernel3 conservando el formato original
         run: |
           BUILD_DIR=$(cat /tmp/build_path)
           cd "$BUILD_DIR"
@@ -92,13 +92,10 @@ jobs:
           # Copiar la nueva imagen compilada a la carpeta AnyKernel3
           cp "$IMAGE_PATH" "$ANYKERNEL_DIR/Image"
 
-          # Descomprimir el boot.img.lz4 original para que AnyKernel3 lo utilice de base limpia
+          # Mantener el boot.img.lz4 intacto para evitar corromper las cabeceras de Samsung
           cd "$ANYKERNEL_DIR"
-          if [ -f "boot.img.lz4" ]; then
-            lz4 -d boot.img.lz4 boot.img || unlz4 boot.img.lz4 || true
-          fi
 
-          # Crear el archivo zip final para flashear por TWRP sin bucles de arranque
+          # Crear el archivo zip final para flashear por TWRP
           zip -r9 "$GITHUB_WORKSPACE/Kernel-A05-Panda-AnyKernel3.zip" * -x ".git*" README.md
 
       - name: Subir Artifact del Kernel Flasheable
