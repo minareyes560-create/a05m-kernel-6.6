@@ -16,16 +16,31 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev bc git wget zip lz4
 
-      - name: Remove KernelSU dependency and Compile
+      - name: Clean, Remove KernelSU dependency and Compile
         run: |
-          echo "Quitando referencia de KernelSU y compilando..."
+          echo "Iniciando limpieza profunda, eliminando KernelSU y compilando..."
           cd kernel-6.6
           
+          # Limpieza profunda de residuos
+          rm -rf drivers/kernelsu || true
+          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
+          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
+
           # Esto elimina la línea que busca drivers/kernelsu/Kconfig para que no dé error
           sed -i '/kernelsu/d' drivers/Kconfig || true
-          
+
+          make mrproper || true
+          mkdir -p out
+
           export ARCH=arm64
           export SUBARCH=arm64
+
+          # Muestra los archivos defconfig disponibles en los logs por si el nombre exacto varía
+          echo "=== Archivos defconfig disponibles ==="
+          ls arch/arm64/configs/
+
+          # Asegúrate de que a05m_defconfig coincida con el nombre exacto listado arriba
           make O=out a05m_defconfig
           make O=out -j$(nproc)
 
