@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup environment and toolchain
         run: |
@@ -38,7 +38,7 @@ jobs:
           zip -r9 ../A05M-Kernel-6.6-AnyKernel3.zip *
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: A05M-Kernel-6.6-AnyKernel3
           path: A05M-Kernel-6.6-AnyKernel3.zip
