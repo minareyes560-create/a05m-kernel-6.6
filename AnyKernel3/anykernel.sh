@@ -1,5 +1,3 @@
-# AnyKernel3 Script para Samsung Galaxy A05 (SM-A055M)
-
 properties() { '
 kernel.string=Kernel Personalizado A05 - Eros Tool
 do.devicecheck=1
@@ -17,13 +15,13 @@ supported.patchlevels=
 
 # Ruta del bloque de arranque para MediaTek (Samsung A05 / SM-A055M)
 block=/dev/block/by-name/boot;
-is_slot_device=auto;
-ramdisk_compression=auto;
-patch_vbmeta_flag=auto;
+is_slot_device=0;
+ramdisk_compression=lz4;
+patch_vbmeta_flag=0;
 
 # Cargar funciones de AnyKernel
 . tools/ak3-core.sh;
 
-# Desempaquetar e inyectar
-split_boot;
-flash_boot;
+# Desempaquetar e inyectar utilizando tu boot.img.lz4 original
+dump_boot;
+write_boot;
