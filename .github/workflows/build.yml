@@ -15,7 +15,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4
 
-      - name: Compilar Kernel e Inyectar Drivers y Parches de Almacenamiento
+      - name: Compilar Kernel, Inyectar Drivers y Parches de Seguridad
         run: |
           cd kernel-6.6
 
@@ -28,7 +28,7 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Búsqueda estricta del defconfig del A05 (Evitamos gki_defconfig genérico si existe el específico)
+          # Búsqueda estricta del defconfig del A05
           DEFCONFIG=""
           for cfg in a05_defconfig a05m_defconfig mt6768_defconfig; do
             if [ -f "arch/arm64/configs/$cfg" ]; then
@@ -44,37 +44,42 @@ jobs:
           echo "Usando configuración detectada: $DEFCONFIG"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 $DEFCONFIG
 
-          # Inyección estricta y limpia de opciones indispensables para evitar bootloops de almacenamiento y red
-          {
-            echo "CONFIG_AFDO_CLANG=n"
-            echo "CONFIG_AUTOFDO_CLANG=n"
-            echo "CONFIG_NET=y"
-            echo "CONFIG_WIRELESS=y"
-            echo "CONFIG_NETDEVICES=y"
-            echo "CONFIG_WLAN=y"
-            echo "CONFIG_CFG80211=y"
-            echo "CONFIG_MAC80211=y"
-            echo "CONFIG_MT76_CORE=y"
-            echo "CONFIG_MT76_USB=y"
-            echo "CONFIG_MT7921U=y"
-            # Parches vitales para evitar errores de montaje en /data y cifrado de Samsung
-            echo "CONFIG_FS_ENCRYPTION=y"
-            echo "CONFIG_FS_ENCRYPTION_METADATA_ENCRYPTION=y"
-            echo "CONFIG_BLK_DEV_DM=y"
-            echo "CONFIG_DM_CRYPT=y"
-            # Forzar compatibilidad con esquemas de arranque de Android / Samsung
-            echo "CONFIG_IKCONFIG=y"
-            echo "CONFIG_IKCONFIG_PROC=y"
-          } >> out/.config
+          # Inyección estricta y limpia de opciones indispensables para evitar bootloops y soportar red/almacenamiento
+          cat <<EOT >> out/.config
+
+          # Correcciones de Arranque y Compresión Samsung
+          CONFIG_KERNEL_LZ4=y
+          CONFIG_IKCONFIG=y
+          CONFIG_IKCONFIG_PROC=y
+
+          # Parches vitales de Cifrado y Almacenamiento (/data)
+          CONFIG_FS_ENCRYPTION=y
+          CONFIG_FS_ENCRYPTION_METADATA_ENCRYPTION=y
+          CONFIG_BLK_DEV_DM=y
+          CONFIG_DM_CRYPT=y
+          CONFIG_DM_VERITY=y
+
+          # Drivers Nativos MT76 y Subsistema Inalámbrico USB
+          CONFIG_NET=y
+          CONFIG_WIRELESS=y
+          CONFIG_NETDEVICES=y
+          CONFIG_WLAN=y
+          CONFIG_CFG80211=y
+          CONFIG_MAC80211=y
+          CONFIG_MT76_CORE=y
+          CONFIG_MT76_USB=y
+          CONFIG_MT7921U=y
+          CONFIG_USB_NET_CDCETHER=y
+          EOT
 
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 oldconfig < /dev/null
           
-          # Compilación optimizada para el kernel e imagen compatible con MediaTek (Generando Image y asegurando formato)
+          # Compilación optimizada para el kernel e imagen compatible con MediaTek
           make -j$(nproc) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- Image
 
           pwd > /tmp/build_path
 
-      - name: Empaquetar con AnyKernel3 conservando el formato original
+      - name: Empaquetar con AnyKernel3 usando el Boot Stock Original sin Corrupción
         run: |
           BUILD_DIR=$(cat /tmp/build_path)
           cd "$BUILD_DIR"
@@ -92,16 +97,26 @@ jobs:
             ANYKERNEL_DIR="$GITHUB_WORKSPACE/AnyKernel3"
           fi
 
-          # Copiar la nueva imagen compilada a AnyKernel3
-          cp "$IMAGE_PATH" "$ANYKERNEL_DIR/Image"
-
           cd "$ANYKERNEL_DIR"
 
-          # Limpiar zips viejos si existen
+          # Verificar que el boot original stock de Samsung exista en el repositorio[cite: 1]
+          if [ ! -f "boot.img.lz4" ]; then
+            echo "Error crítico: No se encuentra el archivo boot.img.lz4 original en AnyKernel3[cite: 1]."
+            exit 1
+          fi
+
+          echo "Boot stock original de Samsung detectado. Preparando inyección limpia..."
+
+          # Copiar la nueva Image compilada al directorio de AnyKernel3
+          cp "$IMAGE_PATH" "$ANYKERNEL_DIR/Image"
+
+          # Limpiar zips anteriores si existen
           rm -f "$GITHUB_WORKSPACE/Kernel-A05-Panda-AnyKernel3.zip"
 
-          # Crear el archivo zip final para flashear por TWRP
+          # Crear el archivo zip final para flashear por TWRP preservando la estructura base
           zip -r9 "$GITHUB_WORKSPACE/Kernel-A05-Panda-AnyKernel3.zip" * -x ".git*" README.md
+
+          echo "Empaquetado completado con éxito respetando la base stock."
 
       - name: Subir Artifact del Kernel Flasheable
         uses: actions/upload-artifact@v4
