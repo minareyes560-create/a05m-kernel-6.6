@@ -21,11 +21,14 @@ jobs:
           echo "Iniciando limpieza profunda, eliminando KernelSU y compilando..."
           cd kernel-6.6
           
-          # Limpieza profunda de residuos
+          # Limpieza profunda de residuos de KernelSU
           rm -rf drivers/kernelsu || true
           find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
           find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
+
+          # Eliminar cualquier rastro de configuración de KernelSU en los defconfigs base
+          find arch/arm64/configs/ -type f | xargs sed -i '/CONFIG_KSU/d' || true
 
           sed -i '/kernelsu/d' drivers/Kconfig || true
 
@@ -38,12 +41,14 @@ jobs:
           echo "=== Listando archivos defconfig disponibles en el repositorio ==="
           ls -l arch/arm64/configs/
 
-          # Detecta automáticamente el defconfig disponible para A05 o usa el estándar del directorio
-          DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|a05m|mt6769" | head -n 1)
+          # Detección inteligente del defconfig real disponible
+          DEFCONFIG=$(ls arch/arm64/configs/ | grep -E "a05|a05m|mt6769|gki" | head -n 1)
           if [ -z "$DEFCONFIG" ]; then
-            DEFCONFIG="a05_defconfig" # Fallback por si acaso
+            # Si no encuentra coincidencia, toma el primer archivo .defconfig disponible
+            DEFCONFIG=$(ls arch/arm64/configs/ | grep "_defconfig" | head -n 1)
           fi
-          echo "Usando defconfig: $DEFCONFIG"
+          
+          echo "Usando defconfig detectado: $DEFCONFIG"
 
           make O=out $DEFCONFIG
           make O=out -j$(nproc)
