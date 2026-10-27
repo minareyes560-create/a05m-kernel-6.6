@@ -16,10 +16,14 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev bc git wget zip lz4
 
-      - name: Compile Kernel
+      - name: Remove KernelSU dependency and Compile
         run: |
-          echo "Iniciando compilación..."
+          echo "Quitando referencia de KernelSU y compilando..."
           cd kernel-6.6
+          
+          # Esto elimina la línea que busca drivers/kernelsu/Kconfig para que no dé error
+          sed -i '/kernelsu/d' drivers/Kconfig || true
+          
           export ARCH=arm64
           export SUBARCH=arm64
           make O=out a05m_defconfig
