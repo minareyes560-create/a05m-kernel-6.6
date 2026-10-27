@@ -19,10 +19,10 @@ jobs:
       - name: Compile Kernel
         run: |
           echo "Compilando kernel 6.6 para a05m..."
-          # Comandos reales de compilación para generar out/arch/arm64/boot/Image
           export ARCH=arm64
           export SUBARCH=arm64
-          make O=out defconfig
+          # Reemplaza 'tu_defconfig_aqui' con el nombre del archivo en arch/arm64/configs/ (ej. a05m_defconfig)
+          make O=out tu_defconfig_aqui
           make O=out -j$(nproc)
 
       - name: Setup AnyKernel3 and Package safely
