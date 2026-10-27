@@ -1,3 +1,4 @@
+# Definición de propiedades para AnyKernel3
 properties() { '
 kernel.string=Kernel Personalizado A05 - Eros Tool
 do.devicecheck=1
@@ -22,6 +23,12 @@ patch_vbmeta_flag=0;
 # Cargar funciones de AnyKernel
 . tools/ak3-core.sh;
 
-# Desempaquetar e inyectar utilizando tu boot.img.lz4 original
-dump_boot;
-write_boot;
+# Flasheo directo de la imagen ya preparada con el kernel y drivers integrados
+if [ -f "$home/boot-final.img" ]; then
+  ui_print "Flaseando boot-final.img optimizado...";
+  dd if=$home/boot-final.img of=$block;
+else
+  ui_print "Aviso: boot-final.img no encontrado, usando método estándar...";
+  dump_boot;
+  write_boot;
+fi
