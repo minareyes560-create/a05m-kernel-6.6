@@ -19,9 +19,11 @@ jobs:
       - name: Compile Kernel
         run: |
           echo "Compilando kernel 6.6 para a05m..."
-          # Coloca aquí tus comandos de compilación (ej. make O=out ARCH=arm64 ...)
-          # make O=out ARCH=arm64 defconfig
-          # make O=out ARCH=arm64 -j$(nproc)
+          # Comandos reales de compilación para generar out/arch/arm64/boot/Image
+          export ARCH=arm64
+          export SUBARCH=arm64
+          make O=out defconfig
+          make O=out -j$(nproc)
 
       - name: Setup AnyKernel3 and Package safely
         run: |
@@ -34,7 +36,7 @@ jobs:
           # 3. Eliminar rastros de git internos para evitar corrupción en el empaquetado
           rm -rf .git
           
-          # 4. Crear el archivo ZIP flasheable final listo para TWRP (utilizará tu anykernel.sh y boot.img.lz4)
+          # 4. Crear el archivo ZIP flasheable final listo para TWRP
           zip -r9 ../A05M-Kernel-6.6-AnyKernel3.zip *
 
       - name: Upload Artifact
