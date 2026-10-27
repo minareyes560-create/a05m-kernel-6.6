@@ -15,7 +15,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4
 
-            - name: Compilar Kernel e Inyectar Drivers MT76
+      - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
           # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
           cd kernel-6.6
