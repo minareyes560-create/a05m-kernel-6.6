@@ -1,1 +1,46 @@
+name: Build Kernel 6.6 for Samsung Galaxy A05
 
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Setup environment and toolchain
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev bc git wget zip lz4
+
+      - name: Compile Kernel
+        run: |
+          echo "Compilando kernel 6.6 para a05m..."
+          # Coloca aquí tus comandos de compilación (ej. make O=out ...)
+
+      - name: Setup AnyKernel3 and Package safely
+        run: |
+          # 1. Verificar o mover la imagen compilada del kernel a la carpeta AnyKernel3
+          cp out/arch/arm64/boot/Image AnyKernel3/Image
+          
+          # 2. Asegurar que el boot.img.lz4 original esté presente y limpio en la ruta de AnyKernel3
+          # Si ya lo subiste a tu repositorio, asegúrate de que no tenga conflictos:
+          ls -lh AnyKernel3/boot.img.lz4
+          
+          # 3. Entrar a la carpeta AnyKernel3 para empaquetar limpio
+          cd AnyKernel3
+          
+          # Limpiar archivos temporales o rastros de git internos para evitar corrupción
+          rm -rf .git
+          
+          # 4. Crear el archivo ZIP final para flashear por TWRP
+          zip -r9 ../A05M-Kernel-6.6-AnyKernel3.zip *
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: A05M-Kernel-6.6-AnyKernel3
+          path: A05M-Kernel-6.6-AnyKernel3.zip
