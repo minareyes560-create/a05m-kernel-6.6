@@ -17,6 +17,7 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
+          # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
           cd kernel-6.6
 
           # Limpieza profunda de residuos
@@ -28,16 +29,17 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Configuración base para GKI ARM64
+          # Usar gki_defconfig desde arch/arm64/configs
           echo "Usando defconfig base: gki_defconfig"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
+          # Verificación estricta de que el archivo .config se creó correctamente
           if [ ! -f "out/.config" ]; then
             echo "Error crítico: El archivo out/.config no se generó."
             exit 1
           fi
 
-          # Inyección de parámetros de red y drivers USB Wi-Fi
+          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -52,9 +54,11 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
+          # Sincronización limpia para evitar errores de dependencias
+          echo "Sincronizando configuración con olddefconfig..."
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
 
-          # Compilación usando todos los hilos disponibles
+          # Compilación del Kernel (usando todos los núcleos disponibles)
           echo "Iniciando compilación del kernel..."
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc)
 
@@ -63,19 +67,25 @@ jobs:
           # Regresar a la raíz del workspace
           cd ..
 
-          # Verificar que se generó la imagen compilada
-          if [ ! -f "kernel-6.6/out/arch/arm64/boot/Image" ]; then
-            echo "Error: No se encontró la imagen compilada del kernel."
+          echo "Buscando la imagen del kernel compilada..."
+          
+          # Buscar de manera dinámica el archivo Image generado en cualquier subcarpeta
+          KERNEL_IMAGE=$(find . -name "Image" -not -path "*/AnyKernel3/*" | head -n 1)
+
+          if [ -z "$KERNEL_IMAGE" ]; then
+            echo "Error crítico: No se encontró ningún archivo 'Image' compilado en el workspace."
             exit 1
           fi
 
-          # Copiar la nueva imagen compilada a la carpeta AnyKernel3
-          cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/Image
+          echo "¡Imagen encontrada con éxito en: $KERNEL_IMAGE"
 
-          # Opcional: Asegurar permisos en la carpeta AnyKernel3
+          # Copiar la imagen encontrada a la carpeta AnyKernel3
+          cp "$KERNEL_IMAGE" AnyKernel3/Image
+
+          # Asegurar permisos correctos
           chmod -R 755 AnyKernel3
 
-          # Crear el ZIP flasheable final
+          # Crear el archivo ZIP flasheable final
           cd AnyKernel3
           zip -r9 ../Samsung-A05-Kernel-MT7921U.zip *
 
