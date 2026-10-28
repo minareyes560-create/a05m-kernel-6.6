@@ -1,4 +1,4 @@
-# Definitiva de propiedades para AnyKernel3
+# Definición de propiedades para AnyKernel3
 properties() { '
 kernel.string=Kernel Personalizado A05 - Eros Tool
 do.devicecheck=1
@@ -14,18 +14,27 @@ supported.versions=
 supported.patchlevels=
 '; }
 
-# Configuración de partición para Samsung
+# Configuración de partición para Samsung A05
 block=/dev/block/by-name/boot;
 is_slot_device=0;
-ramdisk_compression=lz4;
+ramdisk_compression=auto;
 patch_vbmeta_flag=0;
 
 # Cargar funciones base de AnyKernel
 . tools/ak3-core.sh;
 
-# Flasheo seguro utilizando el Image compilado y el boot.img base original
-dump_boot;
+# Inicio del proceso de extracción y flasheo seguro
+ui_print "Extrayendo partición de arranque del dispositivo...";
+dd if=$block of=$home/boot.img;
 
-# Si AnyKernel encuentra una imagen de kernel personalizada en el directorio, la usa; 
-# de lo contrario, aplica el paquete estándar de forma limpia
+ui_print "Buscando y descomprimiendo el ramdisk original...";
+if [ -f "boot.img" ]; then
+  # Forzar la extracción del ramdisk para que AnyKernel3 lo reconozca
+  unpack_boot;
+else
+  ui_print "Error: No se pudo generar la imagen base del boot.";
+  exit 1;
+fi
+
+# Escribir el nuevo kernel con el ramdisk ya localizado e integrado
 write_boot;
