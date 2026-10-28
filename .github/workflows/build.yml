@@ -64,13 +64,10 @@ jobs:
 
       - name: Preparar y empaquetar con AnyKernel3
         run: |
-          # Regresar a la raíz del workspace
-          cd ..
-
           echo "Buscando la imagen del kernel compilada..."
           
-          # Buscar de manera dinámica el archivo Image generado en cualquier subcarpeta
-          KERNEL_IMAGE=$(find . -name "Image" -not -path "*/AnyKernel3/*" | head -n 1)
+          # Buscar de manera dinámica el archivo Image generado en todo el workspace
+          KERNEL_IMAGE=$(find "$GITHUB_WORKSPACE" -name "Image" -not -path "*/AnyKernel3/*" | head -n 1)
 
           if [ -z "$KERNEL_IMAGE" ]; then
             echo "Error crítico: No se encontró ningún archivo 'Image' compilado en el workspace."
@@ -79,15 +76,25 @@ jobs:
 
           echo "¡Imagen encontrada con éxito en: $KERNEL_IMAGE"
 
-          # Copiar la imagen encontrada a la carpeta AnyKernel3
-          cp "$KERNEL_IMAGE" AnyKernel3/Image
+          # Verificar y ubicar la carpeta AnyKernel3 de forma segura
+          ANYKERNEL_DIR=$(find "$GITHUB_WORKSPACE" -type d -name "AnyKernel3" | head -n 1)
+
+          if [ -z "$ANYKERNEL_DIR" ]; then
+            echo "Error crítico: No se encontró la carpeta AnyKernel3 en el repositorio."
+            exit 1
+          fi
+
+          echo "Carpeta AnyKernel3 encontrada en: $ANYKERNEL_DIR"
+
+          # Copiar la imagen compilada a la carpeta AnyKernel3
+          cp "$KERNEL_IMAGE" "$ANYKERNEL_DIR/Image"
 
           # Asegurar permisos correctos
-          chmod -R 755 AnyKernel3
+          chmod -R 755 "$ANYKERNEL_DIR"
 
           # Crear el archivo ZIP flasheable final
-          cd AnyKernel3
-          zip -r9 ../Samsung-A05-Kernel-MT7921U.zip *
+          cd "$ANYKERNEL_DIR"
+          zip -r9 "$GITHUB_WORKSPACE/Samsung-A05-Kernel-MT7921U.zip" *
 
           echo "¡Empaquetado completado con éxito!"
 
