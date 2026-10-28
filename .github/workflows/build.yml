@@ -1,4 +1,4 @@
-name: Compilar Kernel Samsung A05 - Eros Tool
+name: Compilar Kernel Samsung A05 y Empaquetar AnyKernel3
 
 on:
   workflow_dispatch:
@@ -7,17 +7,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Clonar repositorio del Kernel
+      - name: Clonar repositorio y submódulos
         uses: actions/checkout@v4
 
       - name: Instalación de dependencias y Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4 unzip
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
           cd kernel-6.6
 
           # Limpieza profunda de residuos
@@ -29,17 +28,16 @@ jobs:
           make mrproper || true
           mkdir -p out
 
-          # Usar gki_defconfig desde arch/arm64/configs
+          # Configuración base para GKI ARM64
           echo "Usando defconfig base: gki_defconfig"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
-          # Verificación estricta de que el archivo .config se creó correctamente
           if [ ! -f "out/.config" ]; then
             echo "Error crítico: El archivo out/.config no se generó."
             exit 1
           fi
 
-          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
+          # Inyección de parámetros de red y drivers USB Wi-Fi
           {
             echo "CONFIG_AFDO_CLANG=n"
             echo "CONFIG_AUTOFDO_CLANG=n"
@@ -54,61 +52,37 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
-          # Compilación efectiva del kernel en paralelo
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
+
+          # Compilación usando todos los hilos disponibles
+          echo "Iniciando compilación del kernel..."
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc)
 
-      - name: Integrar con Boot Original y Preparar para Eros Tool
+      - name: Preparar y empaquetar con AnyKernel3
         run: |
-          # Descargar Magisk oficial y extraer magiskboot para evitar errores de enlaces rotos
-          wget -O magiskboot.zip https://github.com/topjohnwu/Magisk/releases/download/v26.1/Magisk-v26.1.apk
-          unzip -o magiskboot.zip lib/x86_64/libmagiskboot.so
-          mv lib/x86_64/libmagiskboot.so magiskboot
-          chmod +x magiskboot
-
-          # Localizar la imagen del kernel compilada
-          KERNEL_IMAGE="kernel-6.6/out/arch/arm64/boot/Image"
-          if [ ! -f "$KERNEL_IMAGE" ]; then
-            echo "Error: No se encontró la imagen compilada del kernel en out/arch/arm64/boot/Image"
-            exit 1
-          fi
-
-          # Procesar la estructura de AnyKernel3 donde tienes el boot original
-          cd AnyKernel3
-
-          # Descomprimir boot.img.lz4 si existe en el repositorio
-          if [ -f "boot.img.lz4" ]; then
-            lz4 -d boot.img.lz4 boot.img
-          fi
-
-          # Si ya tenemos un boot.img extraído de la ROM stock, lo adaptamos
-          if [ -f "boot.img" ]; then
-            echo "Desempaquetando boot.img original con magiskboot..."
-            ../magiskboot unpack boot.img
-            
-            # Reemplazar el archivo del kernel stock por tu kernel recién compilado
-            cp ../$KERNEL_IMAGE kernel
-            
-            echo "Empaquetando y firmando cabeceras para evitar bootloop..."
-            ../magiskboot repack boot.img
-            
-            # magiskboot genera 'new-boot.img'
-            if [ -f "new-boot.img" ]; then
-              ../magiskboot cleanup
-              mv new-boot.img boot-final.img
-              echo "¡Éxito! boot-final.img optimizado anti-bootloop está listo para Eros Tool."
-            else
-              echo "Error crítico: magiskboot no pudo generar new-boot.img"
-              exit 1
-            fi
-          else
-            echo "Error: No se encontró el boot.img base de la ROM original."
-            exit 1
-          fi
+          # Regresar a la raíz del workspace
           cd ..
 
-      - name: Subir Artifacts de Compilación
+          # Verificar que se generó la imagen compilada
+          if [ ! -f "kernel-6.6/out/arch/arm64/boot/Image" ]; then
+            echo "Error: No se encontró la imagen compilada del kernel."
+            exit 1
+          fi
+
+          # Copiar la nueva imagen compilada a la carpeta AnyKernel3
+          cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/Image
+
+          # Opcional: Asegurar permisos en la carpeta AnyKernel3
+          chmod -R 755 AnyKernel3
+
+          # Crear el ZIP flasheable final
+          cd AnyKernel3
+          zip -r9 ../Samsung-A05-Kernel-MT7921U.zip *
+
+          echo "¡Empaquetado completado con éxito!"
+
+      - name: Subir Artifact (ZIP para flashear)
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-Samsung-A05-ErosTool-Resultados
-          path: |
-            AnyKernel3/boot-final.img
+          name: Samsung-A05-Kernel-MT7921U
+          path: Samsung-A05-Kernel-MT7921U.zip
