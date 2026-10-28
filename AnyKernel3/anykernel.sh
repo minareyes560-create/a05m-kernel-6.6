@@ -1,4 +1,4 @@
-# Definición de propiedades para AnyKernel3
+# Definitiva de propiedades para AnyKernel3
 properties() { '
 kernel.string=Kernel Personalizado A05 - Eros Tool
 do.devicecheck=1
@@ -14,21 +14,18 @@ supported.versions=
 supported.patchlevels=
 '; }
 
-# Ruta del bloque de arranque para MediaTek (Samsung A05 / SM-A055M)
+# Configuración de partición para Samsung
 block=/dev/block/by-name/boot;
 is_slot_device=0;
 ramdisk_compression=lz4;
 patch_vbmeta_flag=0;
 
-# Cargar funciones de AnyKernel
+# Cargar funciones base de AnyKernel
 . tools/ak3-core.sh;
 
-# Flasheo directo de la imagen ya preparada con el kernel y drivers integrados
-if [ -f "$home/boot-final.img" ]; then
-  ui_print "Flaseando boot-final.img optimizado...";
-  dd if=$home/boot-final.img of=$block;
-else
-  ui_print "Aviso: boot-final.img no encontrado, usando método estándar...";
-  dump_boot;
-  write_boot;
-fi
+# Flasheo seguro utilizando el Image compilado y el boot.img base original
+dump_boot;
+
+# Si AnyKernel encuentra una imagen de kernel personalizada en el directorio, la usa; 
+# de lo contrario, aplica el paquete estándar de forma limpia
+write_boot;
