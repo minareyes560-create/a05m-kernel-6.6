@@ -13,7 +13,7 @@ jobs:
       - name: Instalación de dependencias y Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev zip git lld llvm libelf-dev wget kmod cpio perl python3 python-is-python3 clang linux-firmware lz4 unzip
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
@@ -59,10 +59,10 @@ jobs:
 
       - name: Integrar con Boot Original y Preparar para Eros Tool
         run: |
-          # Descargar magiskboot usando una URL alternativa y estable
-          wget https://github.com/DanGDroid/magiskboot_files/raw/master/magiskboot -O magiskboot || \
-          curl -Lo magiskboot https://github.com/vm03/magiskboot-build/releases/download/v25.2/magiskboot_x86_64
-          
+          # Descargar Magisk oficial y extraer magiskboot para evitar errores de enlaces rotos
+          wget -O magiskboot.zip https://github.com/topjohnwu/Magisk/releases/download/v26.1/Magisk-v26.1.apk
+          unzip -o magiskboot.zip lib/x86_64/libmagiskboot.so
+          mv lib/x86_64/libmagiskboot.so magiskboot
           chmod +x magiskboot
 
           # Localizar la imagen del kernel compilada
