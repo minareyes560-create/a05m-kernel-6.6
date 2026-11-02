@@ -23,18 +23,20 @@ patch_vbmeta_flag=0;
 # Cargar funciones base de AnyKernel
 . tools/ak3-core.sh;
 
-# Inicio del proceso de extracción y flasheo seguro
-ui_print "Extrayendo partición de arranque del dispositivo...";
-dd if=$block of=$home/boot.img;
+# Inicio del proceso de instalación seguro
+ui_print "Iniciando instalación del Kernel Personalizado para Samsung A05...";
 
-ui_print "Buscando y descomprimiendo el ramdisk original...";
-if [ -f "boot.img" ]; then
-  # Forzar la extracción del ramdisk para que AnyKernel3 lo reconozca
+# Verificar si el boot.img base está presente en el paquete ZIP
+if [ -f "$home/boot.img" ]; then
+  ui_print "Descomprimiendo el ramdisk y preparando la imagen...";
   unpack_boot;
 else
-  ui_print "Error: No se pudo generar la imagen base del boot.";
+  ui_print "Error crítico: No se encontró el archivo boot.img en el paquete.";
   exit 1;
 fi
 
-# Escribir el nuevo kernel con el ramdisk ya localizado e integrado
+# Escribir el nuevo kernel integrado con el ramdisk del dispositivo
+ui_print "Flashando el nuevo kernel en la partición de arranque...";
 write_boot;
+
+ui_print "¡Instalación completada con éxito!";
