@@ -86,8 +86,16 @@ jobs:
 
           echo "Carpeta AnyKernel3 encontrada en: $ANYKERNEL_DIR"
 
-          # Copiar la imagen compilada a la carpeta AnyKernel3
+          # Copiar la nueva imagen compilada reemplazando la antigua en AnyKernel3
           cp "$KERNEL_IMAGE" "$ANYKERNEL_DIR/Image"
+
+          # Verificación rápida de que el boot.img está presente en AnyKernel3 antes de comprimir
+          if [ ! -f "$ANYKERNEL_DIR/boot.img" ]; then
+            echo "Error crítico: El archivo boot.img no está dentro de la carpeta AnyKernel3."
+            exit 1
+          fi
+
+          echo "¡boot.img detectado correctamente en AnyKernel3!"
 
           # Asegurar permisos correctos
           chmod -R 755 "$ANYKERNEL_DIR"
