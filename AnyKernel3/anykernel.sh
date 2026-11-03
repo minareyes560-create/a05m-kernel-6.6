@@ -15,7 +15,7 @@ supported.patchlevels=
 '; }
 
 # Configuración de partición para Samsung A05
-block=/dev/block/by-name/boot;
+block=/dev/block/mmcblk0p35;
 is_slot_device=0;
 ramdisk_compression=auto;
 patch_vbmeta_flag=0;
