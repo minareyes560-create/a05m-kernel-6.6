@@ -20,11 +20,19 @@ jobs:
           # Posicionarse limpiamente en la carpeta del kernel
           cd kernel-6.6
 
-          # Limpieza profunda de residuos y eliminación estricta de la línea de KernelSU en Kconfig
+          # Limpieza estricta de residuos y eliminación de KernelSU
           rm -rf drivers/kernelsu || true
-          
           if [ -f "drivers/Kconfig" ]; then
             sed -i '/kernelsu/d' drivers/Kconfig || true
+          fi
+
+          # Integrar el código fuente de mt76 necesario para el adaptador USB Wi-Fi
+          mkdir -p drivers/net/wireless/mediatek
+          if [ ! -d "drivers/net/wireless/mediatek/mt76" ]; then
+            echo "Descargando drivers mt76..."
+            git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git --depth=1 temp_mt76
+            cp -r temp_mt76/drivers/net/wireless/mediatek/mt76 drivers/net/wireless/mediatek/
+            rm -rf temp_mt76
           fi
 
           make mrproper || true
@@ -34,7 +42,7 @@ jobs:
           # Cargar la configuración base limpia
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
-          # Inyección limpia de los parámetros de red y drivers USB Wi-Fi
+          # Inyección de los parámetros de red y drivers USB Wi-Fi
           {
             echo "CONFIG_NET=y"
             echo "CONFIG_WIRELESS=y"
@@ -50,7 +58,7 @@ jobs:
           # Sincronizar dependencias sin errores
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
 
-          # Compilación segura del Kernel
+          # Compilación segura del Kernel con todos los núcleos disponibles
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc)
 
       - name: Preparar y empaquetar con AnyKernel3
