@@ -17,48 +17,20 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Buscar y entrar a la carpeta del kernel de manera segura sin errores de ruta
-          if [ -d "kernel-6.6" ]; then
-            cd kernel-6.6
-          elif [ -d "a05m-kernel-6.6/kernel-6.6" ]; then
-            cd a05m-kernel-6.6/kernel-6.6
-          else
-            # Búsqueda genérica del directorio que contenga el Makefile del kernel
-            KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" | grep "kernel-6.6" | xargs dirname | head -n 1)
-            if [ -n "$KERNEL_DIR" ]; then
-              cd "$KERNEL_DIR"
-            else
-              echo "Error crítico: No se encontró la carpeta del kernel."
-              exit 1
-            fi
-          fi
+          # Posicionarse limpiamente en la carpeta del kernel
+          cd kernel-6.6
 
-          pwd
-          ls -la
-
-          # Limpieza profunda de residuos
-          rm -rf drivers/kernelsu || true
-          find . -name "Kconfig*" -o -name "Makefile" | xargs sed -i '/kernelsu/d' || true
-          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AFDO_CLANG=y/CONFIG_AFDO_CLANG=n/g' || true
-          find . -name "Makefile" -o -name "Kconfig*" | xargs sed -i 's/CONFIG_AUTOFDO_CLANG=y/CONFIG_AUTOFDO_CLANG=n/g' || true
-
+          # Limpieza estricta de compilaciones previas corruptas
+          make O=out clean || true
           make mrproper || true
+          rm -rf out
           mkdir -p out
 
-          # Usar gki_defconfig desde arch/arm64/configs
-          echo "Usando defconfig base: gki_defconfig"
+          # Cargar la configuración base limpia
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
 
-          # Verificación estricta de que el archivo .config se creó correctamente
-          if [ ! -f "out/.config" ]; then
-            echo "Error crítico: El archivo out/.config no se generó."
-            exit 1
-          fi
-
-          # Inyección segura de parámetros de red y drivers mt76 para el adaptador Wi-Fi
+          # Inyección limpia de los parámetros de red y drivers USB Wi-Fi
           {
-            echo "CONFIG_AFDO_CLANG=n"
-            echo "CONFIG_AUTOFDO_CLANG=n"
             echo "CONFIG_NET=y"
             echo "CONFIG_WIRELESS=y"
             echo "CONFIG_NETDEVICES=y"
@@ -70,12 +42,10 @@ jobs:
             echo "CONFIG_MT7921U=y"
           } >> out/.config
 
-          # Sincronización limpia para evitar errores de dependencias
-          echo "Sincronizando configuración con olddefconfig..."
+          # Sincronizar dependencias sin errores
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
 
-          # Compilación del Kernel (usando todos los núcleos disponibles)
-          echo "Iniciando compilación del kernel..."
+          # Compilación segura del Kernel
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc)
 
       - name: Preparar y empaquetar con AnyKernel3
