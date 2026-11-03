@@ -20,8 +20,13 @@ jobs:
           # Posicionarse limpiamente en la carpeta del kernel
           cd kernel-6.6
 
-          # Limpieza estricta de compilaciones previas corruptas
-          make O=out clean || true
+          # Limpieza profunda de residuos y eliminación estricta de la línea de KernelSU en Kconfig
+          rm -rf drivers/kernelsu || true
+          
+          if [ -f "drivers/Kconfig" ]; then
+            sed -i '/kernelsu/d' drivers/Kconfig || true
+          fi
+
           make mrproper || true
           rm -rf out
           mkdir -p out
