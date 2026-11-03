@@ -17,8 +17,24 @@ jobs:
 
       - name: Compilar Kernel e Inyectar Drivers MT76
         run: |
-          # Entrar directo a la carpeta kernel-6.6 que está en la raíz del repositorio
-          cd kernel-6.6
+          # Buscar y entrar a la carpeta del kernel de manera segura sin errores de ruta
+          if [ -d "kernel-6.6" ]; then
+            cd kernel-6.6
+          elif [ -d "a05m-kernel-6.6/kernel-6.6" ]; then
+            cd a05m-kernel-6.6/kernel-6.6
+          else
+            # Búsqueda genérica del directorio que contenga el Makefile del kernel
+            KERNEL_DIR=$(find . -maxdepth 3 -name "Makefile" | grep "kernel-6.6" | xargs dirname | head -n 1)
+            if [ -n "$KERNEL_DIR" ]; then
+              cd "$KERNEL_DIR"
+            else
+              echo "Error crítico: No se encontró la carpeta del kernel."
+              exit 1
+            fi
+          fi
+
+          pwd
+          ls -la
 
           # Limpieza profunda de residuos
           rm -rf drivers/kernelsu || true
